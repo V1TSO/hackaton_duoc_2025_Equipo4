@@ -21,6 +21,8 @@ export class SupabaseAuth {
     age: number
   }) {
     try {
+# Ver las últimas líneas
+tail -5 src/lib/auth.ts
       const { data, error } = await supabase.auth.signUp({
         email: userData.email,
         password: userData.password,
@@ -151,4 +153,5 @@ export class SupabaseAuth {
   }
 }
 
+export const auth = new SupabaseAuth()
 export const auth = new SupabaseAuth()

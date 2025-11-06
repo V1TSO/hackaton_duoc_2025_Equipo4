@@ -11,6 +11,7 @@ export default async function AppDashboardPage() {
         <p className="text-sm uppercase tracking-[0.2em] text-foreground/60">
           CardioSense
         </p>
+    
         <h1 className="text-3xl font-semibold text-foreground">
           Panel de riesgo cardiometabólico
         </h1>

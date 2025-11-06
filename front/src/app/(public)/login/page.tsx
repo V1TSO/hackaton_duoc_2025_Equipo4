@@ -1,10 +1,16 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Heart, Shield, ArrowLeft, Mail, Lock } from "lucide-react";
+import Link from "next/link";
+import { auth } from "@/lib/auth";
 
 export default function LoginPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const message = searchParams.get("message");
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -18,22 +24,18 @@ export default function LoginPage() {
     const password = formData.get("password") as string;
 
     try {
-      const response = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ email, password }),
-      });
+      const result = await auth.login(email, password);
 
-      if (!response.ok) {
-        const data = (await response
-          .json()
-          .catch(() => ({}))) as { message?: string };
-        throw new Error(data.message ?? "No pudimos iniciar sesión");
+      if (!result.success) {
+        throw new Error(result.error);
       }
 
-      router.replace("/app");
+      // Redirigir según el rol
+      if (result.user?.role === "admin") {
+        router.push("/admin");
+      } else {
+        router.push("/dashboard");
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error inesperado");
     } finally {
@@ -42,63 +44,138 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-6 py-12">
-      <div className="w-full max-w-md rounded-xl border border-black/10 bg-white p-8 shadow-sm dark:border-white/10 dark:bg-neutral-900">
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground">
-          Inicia sesión en CardioSense
-        </h1>
-        <p className="mt-1 text-sm text-foreground/70">
-          Usa las credenciales emitidas por el equipo clínico.
-        </p>
-
-        <form className="mt-8 space-y-4" onSubmit={handleSubmit}>
-          <div className="space-y-2">
-            <label className="text-sm font-medium" htmlFor="email">
-              Correo electrónico
-            </label>
-            <input
-              id="email"
-              name="email"
-              type="email"
-              required
-              autoComplete="email"
-              className="w-full rounded-md border border-black/10 bg-white px-3 py-2 text-sm outline-none transition focus:border-black/40 focus:ring-2 focus:ring-black/20 dark:border-white/10 dark:bg-neutral-800 dark:focus:border-white/40 dark:focus:ring-white/20"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <label className="text-sm font-medium" htmlFor="password">
-              Contraseña
-            </label>
-            <input
-              id="password"
-              name="password"
-              type="password"
-              required
-              autoComplete="current-password"
-              className="w-full rounded-md border border-black/10 bg-white px-3 py-2 text-sm outline-none transition focus:border-black/40 focus:ring-2 focus:ring-black/20 dark:border-white/10 dark:bg-neutral-800 dark:focus:border-white/40 dark:focus:ring-white/20"
-            />
-          </div>
-
-          {error ? (
-            <p className="text-sm text-red-600" role="alert">
-              {error}
-            </p>
-          ) : null}
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="flex w-full items-center justify-center rounded-md bg-black px-3 py-2 text-sm font-semibold text-white transition hover:bg-black/80 disabled:cursor-not-allowed disabled:bg-black/40 dark:bg-white dark:text-black dark:hover:bg-white/80"
+    <div className="min-h-screen bg-gradient-to-br from-red-50 to-pink-50">
+      <div className="flex min-h-screen items-center justify-center px-6 py-12">
+        <div className="w-full max-w-md">
+          {/* Botón de regreso */}
+          <Link
+            href="/"
+            className="inline-flex items-center text-sm text-gray-600 hover:text-red-600 mb-8 transition-colors"
           >
-            {loading ? "Ingresando..." : "Ingresar"}
-          </button>
-        </form>
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Volver al inicio
+          </Link>
 
-        <p className="mt-6 text-xs text-foreground/60">
-          CardioSense es una herramienta educativa. No reemplaza diagnóstico
-          médico profesional.
-        </p>
+          {/* Card de Login */}
+          <div className="rounded-2xl border border-white/20 bg-white/80 backdrop-blur-sm p-8 shadow-xl">
+            {/* Header */}
+            <div className="text-center mb-8">
+              <div className="flex items-center justify-center mb-4">
+                <Heart className="h-10 w-10 text-red-500 mr-3" />
+                <h1 className="text-2xl font-bold text-gray-900">CardioSense</h1>
+              </div>
+              <h2 className="text-xl font-semibold text-gray-900 mb-2">
+                Iniciar Sesión
+              </h2>
+              <p className="text-sm text-gray-600">
+                Accede a tu dashboard personalizado
+              </p>
+            </div>
+
+            {/* Mensaje de éxito desde registro */}
+            {message && (
+              <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-xl">
+                <p className="text-sm text-green-600 text-center">
+                  {decodeURIComponent(message)}
+                </p>
+              </div>
+            )}
+
+            {/* Formulario */}
+            <form className="space-y-5" onSubmit={handleSubmit}>
+              <div className="space-y-2">
+                <label
+                  className="text-sm font-medium text-gray-700"
+                  htmlFor="email"
+                >
+                  Correo electrónico
+                </label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <input
+                    id="email"
+                    name="email"
+                    type="email"
+                    required
+                    autoComplete="email"
+                    className="w-full pl-10 pr-3 py-3 rounded-xl border border-gray-300 bg-white text-sm outline-none transition focus:border-red-500 focus:ring-2 focus:ring-red-200"
+                    placeholder="tu@email.com"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label
+                  className="text-sm font-medium text-gray-700"
+                  htmlFor="password"
+                >
+                  Contraseña
+                </label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <input
+                    id="password"
+                    name="password"
+                    type="password"
+                    required
+                    autoComplete="current-password"
+                    className="w-full pl-10 pr-3 py-3 rounded-xl border border-gray-300 bg-white text-sm outline-none transition focus:border-red-500 focus:ring-2 focus:ring-red-200"
+                    placeholder="••••••••"
+                  />
+                </div>
+              </div>
+
+              {error ? (
+                <div className="bg-red-50 border border-red-200 rounded-xl p-4">
+                  <p className="text-sm text-red-600 text-center" role="alert">
+                    {error}
+                  </p>
+                </div>
+              ) : null}
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full bg-red-600 hover:bg-red-700 text-white font-semibold py-3 px-4 rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {loading ? "Iniciando sesión..." : "Iniciar Sesión"}
+              </button>
+            </form>
+
+            {/* Footer del formulario */}
+            <div className="mt-6 text-center space-y-4">
+              <p className="text-sm text-gray-600">
+                ¿No tienes cuenta?{" "}
+                <Link
+                  href="/register"
+                  className="text-red-600 hover:text-red-700 font-medium"
+                >
+                  Regístrate aquí
+                </Link>
+              </p>
+
+              <div className="pt-4 border-t border-gray-200">
+                <Link
+                  href="/"
+                  className="text-xs text-gray-500 hover:text-gray-700"
+                >
+                  ← Volver a la página principal
+                </Link>
+              </div>
+            </div>
+          </div>
+
+          {/* Disclaimer */}
+          <div className="mt-8 bg-yellow-50/80 backdrop-blur-sm border border-yellow-200 rounded-xl p-4">
+            <div className="flex items-center justify-center space-x-2">
+              <Shield className="h-4 w-4 text-yellow-600" />
+              <p className="text-xs text-yellow-800 text-center">
+                <strong>Disclaimer:</strong> CardioSense es una herramienta
+                educativa, no un diagnóstico médico.
+              </p>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );
