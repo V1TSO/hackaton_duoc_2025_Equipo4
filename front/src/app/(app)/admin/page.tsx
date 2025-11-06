@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { requireAdmin } from "@/lib/auth";
 
+export const runtime = "edge";
+
 export default async function AdminPage() {
   const session = await requireAdmin();
 

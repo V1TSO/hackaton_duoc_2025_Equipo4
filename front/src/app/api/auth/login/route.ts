@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { persistAuthSession } from "@/lib/auth";
 import { createSupabaseServerClient } from "@/lib/supabaseClient";
 
+export const runtime = "edge";
+
 interface LoginPayload {
   email?: string;
   password?: string;
