@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { requireUser, getUserRole } from "@/lib/auth";
 
+export const runtime = "edge";
+
 export default async function AppDashboardPage() {
   const session = await requireUser();
   const role = getUserRole(session.user);
