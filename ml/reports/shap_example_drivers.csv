@@ -1,0 +1,6 @@
+feature,feature_value,shap_value,impact
+bmi_age_interaction,2093.8676852805525,0.6849941611289978,aumenta
+age,66.0,0.5572127103805542,aumenta
+waist_age_interaction,42.443461781427665,0.2739329934120178,aumenta
+waist_height_ratio,0.6430827542640555,-0.23281000554561615,reduce
+bmi_age_sex_interaction,0.0,-0.19481056928634644,reduce

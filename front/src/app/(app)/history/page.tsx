@@ -28,10 +28,10 @@ export default async function HistoryPage() {
             Realiza tu primera evaluación para comenzar a monitorear tu salud
           </p>
           <Link
-            href="/app/assess"
+            href="/chat"
             className="inline-flex items-center gap-2 bg-red-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-red-700 transition-colors"
           >
-            Nueva Evaluación
+            Conversar con el Asistente
           </Link>
         </div>
       </div>
@@ -159,7 +159,7 @@ export default async function HistoryPage() {
           return (
             <Link
               key={assessment.id}
-              href={`/app/results/${assessment.id}`}
+              href={`/results/${assessment.id}`}
               className="block bg-white rounded-lg border border-gray-200 p-6 shadow-sm hover:shadow-md transition-shadow"
             >
               <div className="flex items-center justify-between">
@@ -189,10 +189,10 @@ export default async function HistoryPage() {
 
       <div className="mt-8 text-center">
         <Link
-          href="/app/assess"
+          href="/chat"
           className="inline-flex items-center gap-2 bg-red-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-red-700 transition-colors"
         >
-          Nueva Evaluación
+          Iniciar Nueva Conversación
         </Link>
       </div>
     </div>

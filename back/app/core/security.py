@@ -5,7 +5,7 @@ from app.core.config import settings
 async def verify_supabase_token(authorization: str = Header(None)):
     """
     Verifica el JWT emitido por Supabase.
-    Si es válido, retorna el objeto de usuario.
+    Si es válido, retorna el objeto de usuario con el token.
     """
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(
@@ -36,4 +36,6 @@ async def verify_supabase_token(authorization: str = Header(None)):
             detail="Token inválido"
         )
 
-    return res.json()
+    user_data = res.json()
+    user_data["_access_token"] = token  # Add token for RLS
+    return user_data

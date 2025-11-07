@@ -2,7 +2,7 @@ from supabase import create_client, Client
 from app.core.config import settings
 import logging
 import uuid
-from typing import List
+from typing import List, Optional
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -10,15 +10,24 @@ logger = logging.getLogger(__name__)
 _supabase_client: Client | None = None
 
 
-def get_supabase() -> Client:
+def get_supabase(access_token: Optional[str] = None) -> Client:
     """
-    Retorna una instancia singleton del cliente Supabase.
+    Retorna un cliente Supabase. Si se proporciona access_token,
+    crea un cliente con ese token para respetar RLS policies.
     """
+    url = settings.SUPABASE_URL
+    key = settings.SUPABASE_ANON_KEY
+    
+    if access_token:
+        # Create a client with the user's JWT token for RLS
+        client = create_client(url, key)
+        client.postgrest.auth(access_token)
+        return client
+    
+    # Use singleton for service role operations
     global _supabase_client
     if _supabase_client is None:
         try:
-            url = settings.SUPABASE_URL
-            key = settings.SUPABASE_ANON_KEY
             _supabase_client = create_client(url, key)
         except Exception as e:
             logger.error(f"Error al conectar con Supabase: {e}")
@@ -77,13 +86,12 @@ def obtener_perfil(usuario_id: str):
             supabase.table("profiles")
             .select("*")
             .eq("id", usuario_id)
-            .single()
             .execute()
         )
         if getattr(res, "error", None):
             logger.error(f"Error Supabase al obtener perfil: {res.error}")
             return None
-        return res.data
+        return res.data[0] if res.data and len(res.data) > 0 else None
     except Exception as e:
         logger.error(f"Error al obtener perfil del usuario: {e}")
         return None
@@ -128,17 +136,17 @@ def guardar_mensaje_agente(usuario_id: str, rol: str, contenido: str, analisis_i
         logger.error(f"Error al guardar mensaje del agente: {e}")
         return {"error": str(e)}
 
-def get_or_create_session(user_id: str, session_id: str | None = None) -> dict:
+def get_or_create_session(user_id: str, session_id: str | None = None, access_token: Optional[str] = None) -> dict:
     """
     Busca una sesión por ID. Si no existe o es nula, crea una nueva.
     """
-    supabase = get_supabase()
+    supabase = get_supabase(access_token)
     
     if session_id:
         try:
-            res = supabase.table("chat_sessions").select("*").eq("id", session_id).eq("user_id", user_id).single().execute()
-            if res.data:
-                return res.data
+            res = supabase.table("chat_sessions").select("*").eq("id", session_id).eq("user_id", user_id).execute()
+            if res.data and len(res.data) > 0:
+                return res.data[0]
         except Exception as e:
             logger.warning(f"No se encontró sesión {session_id}, creando una nueva: {e}")
 
@@ -148,25 +156,25 @@ def get_or_create_session(user_id: str, session_id: str | None = None) -> dict:
             "user_id": user_id,
             "title": "Nueva Conversación" # El default de tu schema de BD
         }
-        res = supabase.table("chat_sessions").insert(new_session).select("*").single().execute()
-        if res.data:
-            logger.info(f"Nueva sesión de chat creada: {res.data['id']}")
-            return res.data
+        res = supabase.table("chat_sessions").insert(new_session).execute()
+        if res.data and len(res.data) > 0:
+            logger.info(f"Nueva sesión de chat creada: {res.data[0]['id']}")
+            return res.data[0]
         else:
             raise Exception(f"No se pudo crear la sesión: {getattr(res, 'error', 'Error desconocido')}")
     except Exception as e:
         logger.error(f"Error crítico al crear sesión: {e}")
         return {"error": str(e)}
 
-def get_messages_by_session(session_id: str) -> List[dict]:
+def get_messages_by_session(session_id: str, access_token: Optional[str] = None) -> List[dict]:
     """
     Obtiene todo el historial de mensajes de una sesión, ordenado.
     """
-    supabase = get_supabase()
+    supabase = get_supabase(access_token)
     try:
         res = (
             supabase.table("chat_messages")
-            .select("role, content") # Solo necesitamos rol y contenido para el LLM
+            .select("*") # Seleccionar todos los campos para el schema ChatMessage
             .eq("session_id", session_id)
             .order("created_at", desc=False) # El más antiguo primero
             .execute()
@@ -176,50 +184,57 @@ def get_messages_by_session(session_id: str) -> List[dict]:
         logger.error(f"Error al obtener historial de mensajes: {e}")
         return []
 
-def save_chat_message(session_id: str, role: str, content: str) -> dict:
+def save_chat_message(session_id: str, role: str, content: str, access_token: Optional[str] = None) -> dict:
     """
     Guarda un nuevo mensaje (de 'user' o 'assistant') en la BD.
     """
-    supabase = get_supabase()
+    supabase = get_supabase(access_token)
     try:
         message = {
             "session_id": session_id,
             "role": role,
             "content": content
         }
-        res = supabase.table("chat_messages").insert(message).select("*").single().execute()
-        if res.data:
-            return res.data
+        res = supabase.table("chat_messages").insert(message).execute()
+        if res.data and len(res.data) > 0:
+            return res.data[0]
         else:
             raise Exception(f"No se pudo guardar el mensaje: {getattr(res, 'error', 'Error desconocido')}")
     except Exception as e:
         logger.error(f"Error al guardar mensaje: {e}")
         return {"error": str(e)}
 
-def link_assessment_to_session(session_id: str, assessment_id: str):
+def link_assessment_to_session(session_id: str, assessment_id: str, access_token: Optional[str] = None):
     """
     (Opcional pero recomendado) Vincula la predicción (assessment)
     con la sesión de chat que la generó.
     """
-    supabase = get_supabase()
+    supabase = get_supabase(access_token)
     try:
         supabase.table("chat_sessions").update({"assessment_id": assessment_id}).eq("id", session_id).execute()
         logger.info(f"Sesión {session_id} vinculada a assessment {assessment_id}")
     except Exception as e:
         logger.error(f"Error al vincular assessment: {e}")
 
-def save_assessment(user_id: str, data: dict) -> dict:
+def save_assessment(user_id: str, data: dict, access_token: Optional[str] = None) -> dict:
     """
     Guarda el resultado de la predicción en la nueva tabla 'assessments'.
     """
-    supabase = get_supabase()
+    supabase = get_supabase(access_token)
     try:
-        # 'data' debe contener: assessment_data, risk_score, risk_level, drivers
-        data["user_id"] = user_id
-        res = supabase.table("assessments").insert(data).select("*").single().execute()
-        if res.data:
-            logger.info(f"Nuevo assessment guardado: {res.data['id']}")
-            return res.data
+        assessment_payload = dict(data)
+        raw_assessment_data = assessment_payload.get("assessment_data", {}) or {}
+        enriched_assessment_data = {
+            **raw_assessment_data,
+            "plan_text": assessment_payload.pop("plan_text", None),
+            "citations": assessment_payload.pop("citations", None),
+        }
+        assessment_payload["assessment_data"] = enriched_assessment_data
+        assessment_payload["user_id"] = user_id
+        res = supabase.table("assessments").insert(assessment_payload).execute()
+        if res.data and len(res.data) > 0:
+            logger.info(f"Nuevo assessment guardado: {res.data[0]['id']}")
+            return res.data[0]
         else:
             raise Exception(f"No se pudo guardar el assessment: {getattr(res, 'error', 'Error desconocido')}")
     except Exception as e:

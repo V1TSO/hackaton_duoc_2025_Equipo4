@@ -1,357 +1,243 @@
-"use client";
+import Link from "next/link";
+import ReactMarkdown from "react-markdown";
+import { requireUser } from "@/lib/auth-helpers";
+import { createClient } from "@/lib/supabase/server";
+import { formatDate, getRiskLabel, getRiskDescription } from "@/lib/utils";
+import type { RiskLevel } from "@/lib/utils";
+import {
+  Activity,
+  ClipboardList,
+  HeartPulse,
+  AlertTriangle,
+  ArrowRight,
+  Bot,
+} from "lucide-react";
 
-import { useState, useEffect, useRef } from "react";
-import { useSearchParams } from "next/navigation";
-import { Send, Bot, User } from "lucide-react";
-import { healthAPI } from "@/lib/api/client";
-import { createClient } from "@/lib/supabase/client";
-import { LoadingSpinner } from "@/components";
-import type { AssessmentData } from "@/lib/types";
+export const runtime = "edge";
 
-interface Message {
-  id: string;
-  role: "user" | "assistant";
-  content: string;
-  citations?: Array<{ source: string; text: string }>;
-  timestamp: Date;
+interface CoachPageProps {
+  searchParams?: {
+    assessment?: string;
+  };
 }
 
-export default function CoachPage() {
-  const searchParams = useSearchParams();
-  const assessmentId = searchParams?.get("assessment");
+export default async function CoachPage({ searchParams }: CoachPageProps) {
+  const session = await requireUser();
+  const supabase = await createClient();
 
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [input, setInput] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
-  const [sessionId, setSessionId] = useState<string | null>(null);
-  const [assessmentData, setAssessmentData] = useState<{
-    assessment_data: AssessmentData;
-    risk_score: number;
-    risk_level: string;
-  } | null>(null);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const assessmentId = searchParams?.assessment;
 
-  useEffect(() => {
-    const loadAssessment = async () => {
-      if (!assessmentId) return;
+  let query = supabase
+    .from("assessments")
+    .select(
+      "id, created_at, risk_score, risk_level, drivers, model_used, assessment_data"
+    )
+    .eq("user_id", session.user.id)
+    .order("created_at", { ascending: false });
 
-      const supabase = createClient();
-      const { data } = await supabase
-        .from("assessments")
-        .select("*")
-        .eq("id", assessmentId)
-        .single();
+  if (assessmentId) {
+    query = query.eq("id", assessmentId);
+  }
 
-      if (data) {
-        setAssessmentData({
-          assessment_data: data.assessment_data,
-          risk_score: data.risk_score,
-          risk_level: data.risk_level,
-        });
-      }
-    };
+  const { data, error } = await query.limit(1);
 
-    loadAssessment();
-  }, [assessmentId]);
+  if (error) {
+    console.error("Error loading assessment:", error);
+    throw new Error("No se pudo cargar la última evaluación.");
+  }
 
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  const assessment = data?.[0];
 
-  const handleSend = async () => {
-    if (!input.trim() || isLoading) return;
+  if (!assessment) {
+    return (
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12 text-center">
+        <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-blue-100 text-blue-600 mb-6">
+          <Bot className="h-8 w-8" />
+        </div>
+        <h1 className="text-3xl font-bold text-gray-900 mb-2">
+          Aún no tienes un plan generado
+        </h1>
+        <p className="text-gray-600 mb-6">
+          Inicia una conversación con el asistente IA para analizar tus datos y construir un plan de acción personalizado.
+        </p>
+        <Link
+          href="/chat"
+          className="inline-flex items-center gap-2 bg-red-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-red-700 transition-colors"
+        >
+          Iniciar conversación
+          <ArrowRight className="h-5 w-5" />
+        </Link>
+      </div>
+    );
+  }
 
-    const userMessage: Message = {
-      id: Date.now().toString(),
-      role: "user",
-      content: input,
-      timestamp: new Date(),
-    };
+  const riskLevel = (assessment.risk_level ?? "low") as RiskLevel;
+  const riskScore = assessment.risk_score ?? 0;
+  const baseDrivers: string[] = Array.isArray(assessment.drivers) ? assessment.drivers : [];
+  const profile = (assessment.assessment_data ?? {}) as Record<string, unknown>;
+  const modelUsed = (assessment.model_used ?? profile.modelo ?? "diabetes") as string;
 
-    setMessages((prev) => [...prev, userMessage]);
-    setInput("");
-    setIsLoading(true);
+  const drivers: string[] = Array.isArray(profile.drivers)
+    ? (profile.drivers as string[])
+    : baseDrivers;
 
-    try {
-      const chatHistory = messages.slice(-5).map((m) => ({
-        role: m.role,
-        content: m.content,
-      }));
+  const planText: string = typeof profile.plan_text === "string"
+    ? profile.plan_text
+    : "Aún no se ha generado un plan para esta evaluación.";
 
-      const response = await healthAPI.coach(input, assessmentData ? {
-        assessment_data: assessmentData.assessment_data,
-        risk_score: assessmentData.risk_score,
-        chat_history: chatHistory,
-      } : undefined);
+  const citations: string[] = Array.isArray(profile.citations)
+    ? (profile.citations as string[])
+    : [];
 
-      const assistantMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        role: "assistant",
-        content: response.message,
-        citations: response.citations,
-        timestamp: new Date(),
-      };
+  const riskPillClasses =
+    riskLevel === "low"
+      ? "text-green-600 bg-green-50 border-green-200"
+      : riskLevel === "moderate"
+      ? "text-yellow-600 bg-yellow-50 border-yellow-200"
+      : "text-red-600 bg-red-50 border-red-200";
 
-      setMessages((prev) => [...prev, assistantMessage]);
-
-      if (!sessionId && assessmentId) {
-        const supabase = createClient();
-        const { data: { user } } = await supabase.auth.getUser();
-
-        if (user) {
-          const { data: session } = await supabase
-            .from("chat_sessions")
-            .insert({
-              user_id: user.id,
-              assessment_id: assessmentId,
-              title: input.slice(0, 50),
-            })
-            .select()
-            .single();
-
-          if (session) {
-            setSessionId(session.id);
-
-            await supabase.from("chat_messages").insert([
-              {
-                session_id: session.id,
-                role: "user",
-                content: userMessage.content,
-              },
-              {
-                session_id: session.id,
-                role: "assistant",
-                content: assistantMessage.content,
-                citations: assistantMessage.citations,
-              },
-            ]);
-          }
-        }
-      } else if (sessionId) {
-        const supabase = createClient();
-        await supabase.from("chat_messages").insert([
-          {
-            session_id: sessionId,
-            role: "user",
-            content: userMessage.content,
-          },
-          {
-            session_id: sessionId,
-            role: "assistant",
-            content: assistantMessage.content,
-            citations: assistantMessage.citations,
-          },
-        ]);
-      }
-    } catch (error) {
-      console.error("Error calling coach:", error);
-      const errorMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        role: "assistant",
-        content:
-          "Lo siento, hubo un error al procesar tu solicitud. Por favor, inténtalo de nuevo.",
-        timestamp: new Date(),
-      };
-      setMessages((prev) => [...prev, errorMessage]);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      handleSend();
-    }
-  };
+  const profileHighlights = [
+    { label: "Edad", value: profile.edad ? `${profile.edad} años` : "—" },
+    { label: "Sexo", value: profile.genero === "M" ? "Masculino" : profile.genero === "F" ? "Femenino" : "—" },
+    { label: "IMC", value: profile.imc ? Number(profile.imc).toFixed(1) : "—" },
+    { label: "Cintura", value: profile.circunferencia_cintura ? `${profile.circunferencia_cintura} cm` : "—" },
+    { label: "Presión sistólica", value: profile.presion_sistolica ? `${profile.presion_sistolica} mmHg` : "—" },
+    { label: "Sueño", value: profile.horas_sueno ? `${profile.horas_sueno} h` : "—" },
+  ];
 
   return (
-    <div className="h-screen flex flex-col bg-gradient-to-br from-blue-50 via-white to-indigo-50">
-      <div className="bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white px-4 sm:px-6 lg:px-8 py-8 shadow-lg">
-        <div className="max-w-5xl mx-auto">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="bg-white/20 backdrop-blur-sm rounded-full p-3">
-              <Bot className="h-8 w-8 text-white" />
+    <div className="bg-linear-to-br from-blue-50 via-white to-indigo-50 min-h-screen">
+      <header className="bg-linear-to-r from-blue-600 via-indigo-600 to-purple-600 text-white shadow-lg">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+          <div className="flex flex-col gap-4">
+            <div className="flex items-center gap-3">
+              <div className="bg-white/20 backdrop-blur-sm rounded-full p-3">
+                <HeartPulse className="h-8 w-8 text-white" />
+              </div>
+              <div>
+                <p className="text-sm uppercase tracking-wide text-blue-100">
+                  Plan personalizado
+                </p>
+                <h1 className="text-4xl font-bold">
+                  Coach de Salud CardioSense
+                </h1>
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-4 text-sm text-blue-100">
+              <span className="inline-flex items-center gap-2 bg-white/10 px-3 py-1 rounded-full">
+                <ClipboardList className="h-4 w-4" />
+                Modelo: {modelUsed === "cardiovascular" ? "Cardiovascular" : "Diabetes"}
+              </span>
+              <span className="inline-flex items-center gap-2 bg-white/10 px-3 py-1 rounded-full">
+                <Activity className="h-4 w-4" />
+                Última actualización: {formatDate(assessment.created_at)}
+              </span>
+              <span className={`inline-flex items-center gap-2 px-3 py-1 rounded-full border ${riskPillClasses}`}>
+                <span className="font-semibold">{getRiskLabel(riskLevel)}</span>
+                <span className="text-sm">{Math.round(riskScore * 100)}%</span>
+              </span>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <main className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-8">
+        <section className="bg-white border border-blue-100 rounded-3xl shadow-sm p-8">
+          <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-6">
+            <div className="flex-1">
+              <h2 className="text-2xl font-semibold text-gray-900 mb-2">Resumen de Riesgo</h2>
+              <p className="text-gray-600 max-w-2xl">
+                {getRiskDescription(riskLevel)}
+              </p>
+            </div>
+            <div className="grid grid-cols-2 gap-3 w-full md:w-72">
+              {profileHighlights.map((item) => (
+                <div key={item.label} className="bg-blue-50 border border-blue-100 rounded-xl px-3 py-2 text-left">
+                  <p className="text-xs uppercase tracking-wide text-blue-500 font-semibold">
+                    {item.label}
+                  </p>
+                  <p className="text-sm font-medium text-gray-800">{item.value}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {drivers.length > 0 && (
+          <section className="bg-white border border-gray-200 rounded-3xl shadow-sm p-8">
+            <h3 className="text-xl font-semibold text-gray-900 mb-4">Principales impulsores</h3>
+            <p className="text-gray-600 mb-6">
+              Factores que el modelo identificó como los principales contribuyentes a tu riesgo actual.
+            </p>
+            <div className="grid md:grid-cols-2 gap-4">
+              {drivers.slice(0, 4).map((driver, index) => (
+                <div key={`${driver}-${index}`} className="border border-gray-200 rounded-2xl p-4 bg-gray-50">
+                  <p className="text-sm font-semibold text-gray-900">{driver}</p>
+                  <p className="text-xs text-gray-500 mt-1">Impacto relevante en la estimación del riesgo.</p>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        <section className="bg-white border border-gray-200 rounded-3xl shadow-sm p-8">
+          <div className="flex items-center gap-3 mb-6">
+            <div className="bg-red-100 text-red-600 rounded-full p-2">
+              <ClipboardList className="h-5 w-5" />
             </div>
             <div>
-              <h1 className="text-4xl font-bold">Coach de Salud IA</h1>
-              <p className="text-blue-100 text-lg">
-                Recomendaciones personalizadas basadas en evidencia científica
+              <h3 className="text-xl font-semibold text-gray-900">
+                Plan de acción recomendado (2 semanas)
+              </h3>
+              <p className="text-gray-600 text-sm">
+                Adaptado a tu perfil y respaldado por la base de conocimiento clínica utilizada en el hackathon.
               </p>
             </div>
           </div>
-        </div>
-      </div>
 
-      <div className="flex-1 overflow-hidden">
-        <div className="max-w-5xl mx-auto h-full flex flex-col">
-          <div className="bg-gradient-to-r from-yellow-50 to-amber-50 border-b-2 border-yellow-200 px-4 py-3 shadow-sm">
-            <p className="text-sm text-yellow-900 text-center font-medium">
-              <strong className="text-yellow-700">⚕️ Recordatorio:</strong> Este coach es una herramienta
-              educativa. No reemplaza el consejo médico profesional.
+          <div className="prose prose-sm max-w-none text-gray-800">
+            <ReactMarkdown>{planText}</ReactMarkdown>
+          </div>
+
+          {citations.length > 0 && (
+            <div className="mt-6 border-t border-gray-200 pt-4">
+              <p className="text-sm font-semibold text-gray-900 mb-2 flex items-center gap-2">
+                <AlertTriangle className="h-4 w-4 text-gray-500" />
+                Fuentes utilizadas
+              </p>
+              <ul className="list-disc list-inside space-y-1 text-sm text-gray-600">
+                {citations.map((citation, idx) => (
+                  <li key={idx}>{citation}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </section>
+
+        <section className="bg-white border border-blue-100 rounded-3xl shadow-sm p-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-6">
+          <div>
+            <h3 className="text-xl font-semibold text-gray-900 mb-2">¿Quieres refinar tu plan?</h3>
+            <p className="text-gray-600 text-sm">
+              Regresa a la conversación para actualizar tus datos o resolver dudas con el asistente IA.
             </p>
           </div>
-
-          <div className="flex-1 overflow-y-auto p-6 space-y-6">
-            {messages.length === 0 && (
-              <div className="flex flex-col items-center justify-center h-full text-center px-4">
-                <div className="bg-gradient-to-br from-blue-500 to-indigo-600 rounded-3xl p-6 shadow-2xl mb-6 animate-bounce-slow">
-                  <Bot className="h-20 w-20 text-white" />
-                </div>
-                <h2 className="text-4xl font-bold text-gray-900 mb-3">
-                  ¿En qué puedo ayudarte?
-                </h2>
-                <p className="text-gray-600 text-lg max-w-md mb-6">
-                  Pregúntame sobre nutrición, ejercicio, hábitos de sueño, o
-                  cómo mejorar tu salud cardiovascular.
-                </p>
-                {process.env.NEXT_PUBLIC_API_AVAILABLE === "false" && (
-                  <div className="bg-gradient-to-r from-orange-50 to-amber-50 border-2 border-orange-200 rounded-xl p-4 max-w-md mb-8 shadow-sm">
-                    <p className="text-sm text-orange-900 font-medium">
-                      <strong className="text-orange-700">🔔 Nota:</strong> Modo demostración activo. 
-                      Las respuestas serán de ejemplo hasta que conectes el backend.
-                    </p>
-                  </div>
-                )}
-                <div className="grid gap-4 max-w-2xl w-full">
-                  <button
-                    onClick={() =>
-                      setInput(
-                        "¿Qué cambios puedo hacer en mi dieta para reducir mi riesgo cardiovascular?"
-                      )
-                    }
-                    className="px-6 py-4 bg-white border-2 border-blue-200 rounded-xl hover:bg-blue-50 hover:border-blue-400 hover:shadow-lg transition-all text-left font-medium text-gray-800 flex items-start gap-3"
-                  >
-                    <span className="text-2xl">🥗</span>
-                    <span>¿Qué cambios puedo hacer en mi dieta?</span>
-                  </button>
-                  <button
-                    onClick={() =>
-                      setInput(
-                        "¿Cuánto ejercicio debería hacer semanalmente?"
-                      )
-                    }
-                    className="px-6 py-4 bg-white border-2 border-green-200 rounded-xl hover:bg-green-50 hover:border-green-400 hover:shadow-lg transition-all text-left font-medium text-gray-800 flex items-start gap-3"
-                  >
-                    <span className="text-2xl">💪</span>
-                    <span>¿Cuánto ejercicio debería hacer?</span>
-                  </button>
-                  <button
-                    onClick={() =>
-                      setInput("¿Cómo puedo mejorar la calidad de mi sueño?")
-                    }
-                    className="px-6 py-4 bg-white border-2 border-purple-200 rounded-xl hover:bg-purple-50 hover:border-purple-400 hover:shadow-lg transition-all text-left font-medium text-gray-800 flex items-start gap-3"
-                  >
-                    <span className="text-2xl">😴</span>
-                    <span>¿Cómo mejorar mi calidad de sueño?</span>
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {messages.map((message) => (
-              <div
-                key={message.id}
-                className={`flex gap-4 ${
-                  message.role === "user" ? "justify-end" : "justify-start"
-                } animate-fade-in`}
-              >
-                {message.role === "assistant" && (
-                  <div className="flex-shrink-0 w-10 h-10 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-full flex items-center justify-center shadow-lg">
-                    <Bot className="h-6 w-6 text-white" />
-                  </div>
-                )}
-
-                <div
-                  className={`max-w-2xl rounded-2xl p-5 shadow-md ${
-                    message.role === "user"
-                      ? "bg-gradient-to-br from-blue-600 to-indigo-600 text-white"
-                      : "bg-white border-2 border-gray-100"
-                  }`}
-                >
-                  <p className={`text-base whitespace-pre-wrap leading-relaxed ${
-                    message.role === "user" ? "text-white" : "text-gray-800"
-                  }`}>
-                    {message.content}
-                  </p>
-
-                  {message.citations && message.citations.length > 0 && (
-                    <div className="mt-4 pt-4 border-t-2 border-blue-100">
-                      <p className="text-xs font-bold text-blue-700 mb-2 flex items-center gap-1">
-                        <span>📚</span> Fuentes científicas:
-                      </p>
-                      <ul className="space-y-2">
-                        {message.citations.map((citation, idx) => (
-                          <li key={idx} className="text-xs text-gray-700 bg-blue-50 rounded-lg p-2">
-                            <span className="font-bold text-blue-600">[{idx + 1}]</span> {citation.source}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-
-                  <p className={`text-xs mt-3 ${
-                    message.role === "user" ? "text-blue-100" : "text-gray-400"
-                  }`}>
-                    {message.timestamp.toLocaleTimeString("es-CL", {
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
-                  </p>
-                </div>
-
-                {message.role === "user" && (
-                  <div className="flex-shrink-0 w-10 h-10 bg-gradient-to-br from-gray-700 to-gray-900 rounded-full flex items-center justify-center shadow-lg">
-                    <User className="h-6 w-6 text-white" />
-                  </div>
-                )}
-              </div>
-            ))}
-
-            {isLoading && (
-              <div className="flex gap-4 animate-fade-in">
-                <div className="flex-shrink-0 w-10 h-10 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-full flex items-center justify-center shadow-lg animate-pulse">
-                  <Bot className="h-6 w-6 text-white" />
-                </div>
-                <div className="bg-white border-2 border-gray-100 rounded-2xl p-5 shadow-md">
-                  <div className="flex items-center gap-3">
-                    <LoadingSpinner size="sm" />
-                    <span className="text-base text-gray-700 font-medium">
-                      Generando respuesta...
-                    </span>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            <div ref={messagesEndRef} />
+          <div className="flex gap-3">
+            <Link
+              href="/chat"
+              className="inline-flex items-center gap-2 px-5 py-3 rounded-lg font-semibold text-white bg-red-600 hover:bg-red-700 transition-colors"
+            >
+              Continuar conversación
+              <ArrowRight className="h-5 w-5" />
+            </Link>
+            <Link
+              href="/history"
+              className="inline-flex items-center gap-2 px-5 py-3 rounded-lg font-semibold text-red-600 border border-red-200 hover:bg-red-50 transition-colors"
+            >
+              Ver historial
+            </Link>
           </div>
-
-          <div className="bg-white border-t-2 border-gray-200 p-4 shadow-lg">
-            <div className="max-w-4xl mx-auto">
-              <div className="flex gap-3 items-end">
-                <textarea
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  onKeyPress={handleKeyPress}
-                  placeholder="Escribe tu pregunta aquí... (Presiona Enter para enviar)"
-                  className="flex-1 px-5 py-4 border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none transition-all text-base"
-                  rows={2}
-                  disabled={isLoading}
-                />
-                <button
-                  onClick={handleSend}
-                  disabled={!input.trim() || isLoading}
-                  className="px-8 py-4 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl font-bold hover:shadow-lg hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 flex items-center gap-2"
-                >
-                  <Send className="h-5 w-5" />
-                  Enviar
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+        </section>
+      </main>
     </div>
   );
 }

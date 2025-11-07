@@ -99,17 +99,17 @@ export default async function AppDashboardPage() {
       <div className="grid gap-6 lg:grid-cols-2 mb-8">
         <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
           <h2 className="text-xl font-semibold text-gray-900 mb-4">
-            Comienza tu evaluación
+            Conversa con el asistente IA
           </h2>
           <p className="text-gray-600 mb-6">
-            Realiza una evaluación completa de tu riesgo cardiometabólico con
-            nuestro sistema basado en datos NHANES.
+            Explora tu riesgo cardiometabólico respondiendo preguntas guiadas en
+            una experiencia conversacional cuidada.
           </p>
           <Link
-            href="/app/assess"
+            href="/chat"
             className="inline-flex items-center gap-2 bg-red-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-red-700 transition-colors"
           >
-            Nueva Evaluación
+            Iniciar Conversación
             <ArrowRight className="h-5 w-5" />
           </Link>
         </div>
@@ -156,7 +156,7 @@ export default async function AppDashboardPage() {
               </p>
             </div>
             <Link
-              href={`/app/results/${latestAssessment.id}`}
+              href={`/results/${latestAssessment.id}`}
               className="text-red-600 hover:text-red-700 font-semibold"
         >
               Ver detalles →

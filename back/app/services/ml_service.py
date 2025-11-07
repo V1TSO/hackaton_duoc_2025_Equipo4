@@ -1,57 +1,78 @@
-import requests
 import logging
-from app.core.config import settings
 from app.schemas.analisis_schema import AnalisisEntrada
+from app.ml.predictor import predict_risk
 
 logger = logging.getLogger(__name__)
 
-def obtener_prediccion(data: AnalisisEntrada) -> dict:
+def obtener_prediccion(data: AnalisisEntrada, model_type: str | None = None) -> dict:
     """
-    Envía datos al modelo ML (Colab) y obtiene riesgo + drivers.
+    Obtiene predicción de riesgo usando el modelo ML local.
     Cumple con el requisito A4 (Explicabilidad).
     """
     
-    # Convertimos el schema de Pydantic a un dict simple para la API de Colab
-    data_dict = data.model_dump(mode='json', exclude_none=True)
-
     try:
-        res = requests.post(settings.COLAB_URL, json=data_dict, timeout=10)
-        res.raise_for_status()
+        height_cm = data.altura_cm
+        weight_kg = data.peso_kg
         
-        # EL ENDPOINT DE COLAB DEBE DEVOLVER ESTO:
-        # Ej: {"riesgo": 0.45, "drivers": ["imc", "tabaquismo"]}
-        ml_response = res.json() 
+        selected_model = (model_type or data.modelo or "diabetes").lower()
 
-        # ---------------------------------------------------------------------------
-        # REQUISITO A4: Extraer score y drivers
-        # ---------------------------------------------------------------------------
-        if "riesgo" not in ml_response or "drivers" not in ml_response:
-            logger.error(f"Respuesta de Colab incompleta: {ml_response}")
-            raise ValueError("La API de ML no devolvió 'riesgo' y 'drivers'")
-            
-        score = float(ml_response.get("riesgo"))
-        drivers = list(ml_response.get("drivers", []))
-        
-        # Definir categoría (esto podría venir del modelo, pero está bien hacerlo aquí)
-        if score < 0.33:
-            categoria = "Bajo"
-        elif score < 0.66:
-            categoria = "Moderado"
+        if data.imc is not None:
+            bmi = data.imc
+        elif height_cm is not None and weight_kg is not None:
+            try:
+                bmi = weight_kg / ((height_cm / 100) ** 2)
+            except ZeroDivisionError:
+                bmi = None
         else:
-            categoria = "Alto"
-
+            bmi = None
+        
+        waist_cm = data.circunferencia_cintura
+        
+        sleep_hours = data.horas_sueno
+        
+        smokes_cig_day = None
+        if data.tabaquismo is not None:
+            smokes_cig_day = 10 if data.tabaquismo else 0
+        
+        days_mvpa_week = None
+        if data.actividad_fisica is not None:
+            activity_map = {
+                "sedentario": 0,
+                "ligero": 2,
+                "moderado": 4,
+                "activo": 6,
+                "muy_activo": 7
+            }
+            days_mvpa_week = activity_map.get(data.actividad_fisica.lower(), 0)
+        
+        result = predict_risk(
+            age=data.edad,
+            sex=data.genero,
+            height_cm=height_cm,
+            weight_kg=weight_kg,
+            waist_cm=waist_cm,
+            sleep_hours=sleep_hours,
+            smokes_cig_day=smokes_cig_day,
+            days_mvpa_week=days_mvpa_week,
+            bmi=bmi,
+            systolic_bp=data.presion_sistolica,
+            total_cholesterol=data.colesterol_total,
+            model_type=selected_model,
+            glucosa_mgdl=data.glucosa_mgdl,
+            hdl_mgdl=data.hdl_mgdl,
+            trigliceridos_mgdl=data.trigliceridos_mgdl,
+            ldl_mgdl=data.ldl_mgdl
+        )
+        
+        drivers_list = [d['feature'] for d in result['drivers']]
+        
         return {
-            "score": score,
-            "drivers": drivers,
-            "categoria_riesgo": categoria
+            "score": result["score"],
+            "drivers": drivers_list,
+            "categoria_riesgo": result["risk_level"],
+            "model_used": result.get("model_used", selected_model)
         }
     
-    except requests.exceptions.Timeout:
-        logger.error("Timeout al conectar con el servicio de ML (Colab)")
-        return {"error": "El servicio de predicción tardó mucho en responder."}
-    except requests.exceptions.RequestException as e:
-        logger.error(f"Error al conectar con Colab: {e}")
-        return {"error": "No se pudo obtener la predicción del modelo de ML."}
     except Exception as e:
-        logger.error(f"Error procesando predicción: {e}")
+        logger.error(f"Error procesando predicción: {e}", exc_info=True)
         return {"error": f"Error inesperado en el servicio de ML: {e}"}

@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/client";
-import type { AssessmentData, CoachResponse, MessageRequest, MessageResponse } from "@/lib/types";
+import type { MessageResponse } from "@/lib/types";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 const API_AVAILABLE = process.env.NEXT_PUBLIC_API_AVAILABLE !== "false";
@@ -75,158 +75,48 @@ async function fetchWithAuth(
   }
 }
 
-export interface PredictRequest {
-  assessment_data: AssessmentData;
-  user_id?: string;
-}
-
-export interface PredictResponse {
-  score: number;
-  drivers: Array<{
-    feature: string;
-    value: number;
-    contribution: number;
-    description: string;
-  }>;
-  risk_level: "low" | "moderate" | "high";
-}
-
-export interface CoachRequest {
-  query: string;
-  assessment_data?: AssessmentData;
-  risk_score?: number;
-  chat_history?: Array<{ role: string; content: string }>;
-  user_id?: string;
-}
-
 export const healthAPI = {
-  async predict(data: AssessmentData): Promise<PredictResponse> {
-    if (!API_AVAILABLE) {
-      // Mock response for development when API is not available
-      return {
-        score: 0.45,
-        risk_level: "moderate",
-        drivers: [
-          {
-            feature: "waist_cm",
-            value: data.waist_cm,
-            contribution: 0.15,
-            description: "Circunferencia de cintura",
-          },
-          {
-            feature: "age",
-            value: data.age,
-            contribution: 0.12,
-            description: "Edad",
-          },
-          {
-            feature: "sleep_hours",
-            value: data.sleep_hours,
-            contribution: -0.08,
-            description: "Horas de sueño",
-          },
-          {
-            feature: "days_mvpa_week",
-            value: data.days_mvpa_week,
-            contribution: -0.06,
-            description: "Días de actividad física",
-          },
-          {
-            feature: "fruit_veg_portions_day",
-            value: data.fruit_veg_portions_day,
-            contribution: -0.05,
-            description: "Porciones de frutas y verduras",
-          },
-        ],
-      };
-    }
-
-    const response = await fetchWithAuth("/api/health/predict", {
-      method: "POST",
-      body: JSON.stringify({ assessment_data: data }),
-    });
-
-    const result = await response.json() as PredictResponse;
-    return result;
-  },
-
-  async coach(
-    query: string,
-    context?: {
-      assessment_data?: AssessmentData;
-      risk_score?: number;
-      chat_history?: Array<{ role: string; content: string }>;
-    }
-  ): Promise<CoachResponse> {
-    if (!API_AVAILABLE) {
-      // Mock response for development when API is not available
-      return {
-        message: `Hola, soy tu Coach de Salud CardioSense. Actualmente el backend no está conectado, pero estoy aquí para ayudarte.\n\nTu pregunta: "${query}"\n\nEn una versión completa, te proporcionaría recomendaciones personalizadas basadas en:\n- Tu perfil de riesgo${context?.risk_score ? ` (${Math.round(context.risk_score * 100)}/100)` : ""}\n- Evidencia científica de nuestra base de conocimiento\n- Guías de salud cardiovascular validadas\n\nPara obtener recomendaciones reales, asegúrate de que el backend FastAPI esté ejecutándose en ${API_BASE_URL}`,
-        citations: [
-          {
-            source: "Sistema de demostración",
-            text: "Este es un mensaje de demostración. Conecta el backend para obtener recomendaciones reales.",
-          },
-        ],
-      };
-    }
-
-    const response = await fetchWithAuth("/api/health/coach", {
-      method: "POST",
-      body: JSON.stringify({
-        query,
-        ...context,
-      }),
-    });
-
-    const result = await response.json() as CoachResponse;
-    return result;
-  },
-
-  async generatePDF(assessmentId: string): Promise<Blob> {
-    if (!API_AVAILABLE) {
-      throw new APIError("La generación de PDF requiere conexión con el backend");
-    }
-
-    const response = await fetchWithAuth(
-      `/api/health/generate-pdf/${assessmentId}`,
-      {
-        method: "POST",
-      }
-    );
-
-    const blob = await response.blob();
-    return blob;
-  },
-
   async message(
-    message: string,
-    conversationHistory: Array<{ role: string; content: string }>,
-    sessionData?: Partial<AssessmentData>
+    content: string,
+    sessionId?: string
   ): Promise<MessageResponse> {
     if (!API_AVAILABLE) {
-      // Mock response for development when API is not available
       return {
-        reply: `Gracias por tu mensaje: "${message}"\n\nEn una versión completa con el backend conectado, el sistema extraería automáticamente tus datos de salud y los validaría.\n\nPara obtener el sistema completo, asegúrate de que el backend FastAPI esté ejecutándose en ${API_BASE_URL}`,
+        reply:
+          "El servicio de mensajería inteligente no está disponible porque el backend no está conectado. Conéctalo y vuelve a intentarlo.",
         extracted_data: {},
         is_ready: false,
         action: "continue",
+        session_id: sessionId,
+        prediction_made: false,
+        model_used: undefined,
+        assessment_id: undefined,
       };
     }
 
-    const requestBody: MessageRequest = {
-      message,
-      conversation_history: conversationHistory,
-      session_data: sessionData,
+    const requestBody = {
+      content,
+      session_id: sessionId || null,
     };
 
-    const response = await fetchWithAuth("/api/health/message", {
+    const response = await fetchWithAuth("/api/chat/message", {
       method: "POST",
       body: JSON.stringify(requestBody),
     });
 
-    const result = await response.json() as MessageResponse;
-    return result;
+    const result = await response.json();
+    
+    // Transform backend response to frontend format
+    return {
+      reply: result.response.content,
+      extracted_data: {},
+      is_ready: result.prediction_made,
+      action: result.prediction_made ? "redirect_results" : "continue",
+      session_id: result.session_id,
+      prediction_made: result.prediction_made,
+      model_used: result.model_used ?? undefined,
+      assessment_id: result.assessment_id ?? undefined,
+    };
   },
 };
 

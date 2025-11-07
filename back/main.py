@@ -6,6 +6,16 @@ app = FastAPI(
     title="Health AI Backend (Hackathon NHANES)",
     version="2.0 - Conversational",
 )
+
+# CORS Configuration
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # TODO: Restrict to specific domains in production
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 # Rutas de Chat (El nuevo flujo principal)
 app.include_router(
     chat_routes.router,

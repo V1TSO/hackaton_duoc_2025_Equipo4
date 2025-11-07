@@ -39,7 +39,7 @@ export async function updateSession(request: NextRequest) {
 
   // Public routes (accessible without auth in development)
   const isDevelopment = process.env.NODE_ENV === "development";
-  const publicInDev = ["/coach", "/assess"];
+  const publicInDev = ["/coach", "/chat"];
   const isPublicInDev = isDevelopment && publicInDev.some(
     (route) => request.nextUrl.pathname === route || request.nextUrl.pathname.startsWith(`${route}/`)
   );

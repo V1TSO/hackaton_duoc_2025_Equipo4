@@ -1,6 +1,5 @@
 import { requireUser } from "@/lib/auth-helpers";
-import { signOutAction } from "@/lib/actions/auth";
-import { DisclaimerBanner, ApiStatusBanner } from "@/components";
+import { DisclaimerBanner, ApiStatusBanner, LogoutButton } from "@/components";
 import {
   Heart,
   LayoutDashboard,
@@ -8,7 +7,6 @@ import {
   MessageSquare,
   ListTodo,
   History,
-  LogOut,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -39,11 +37,11 @@ export default async function AppLayout({
             <NavLink href="/app" icon={LayoutDashboard}>
               Dashboard
             </NavLink>
-            <NavLink href="/app/assess" icon={ClipboardList}>
-              Nueva Evaluación
+            <NavLink href="/chat" icon={MessageSquare}>
+              Conversación IA
             </NavLink>
-            <NavLink href="/coach" icon={MessageSquare}>
-              Coach IA
+            <NavLink href="/coach" icon={ClipboardList}>
+              Plan Personalizado
             </NavLink>
             <NavLink href="/plan" icon={ListTodo}>
               Mi Plan
@@ -60,15 +58,7 @@ export default async function AppLayout({
                 {session.user.email}
               </p>
             </div>
-            <form action={signOutAction}>
-              <button
-                type="submit"
-                className="w-full flex items-center gap-2 px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-              >
-                <LogOut className="h-4 w-4" />
-                Cerrar sesión
-              </button>
-            </form>
+            <LogoutButton />
           </div>
         </aside>
 
@@ -77,16 +67,16 @@ export default async function AppLayout({
             <MobileNavLink href="/app" icon={LayoutDashboard}>
               Dashboard
             </MobileNavLink>
-            <MobileNavLink href="/app/assess" icon={ClipboardList}>
-              Evaluar
+            <MobileNavLink href="/chat" icon={MessageSquare}>
+              Chat
             </MobileNavLink>
-            <MobileNavLink href="/coach" icon={MessageSquare}>
-              Coach
-            </MobileNavLink>
-            <MobileNavLink href="/app/plan" icon={ListTodo}>
+            <MobileNavLink href="/coach" icon={ClipboardList}>
               Plan
             </MobileNavLink>
-            <MobileNavLink href="/app/history" icon={History}>
+            <MobileNavLink href="/plan" icon={ListTodo}>
+              Mi Plan
+            </MobileNavLink>
+            <MobileNavLink href="/history" icon={History}>
               Historial
             </MobileNavLink>
           </nav>

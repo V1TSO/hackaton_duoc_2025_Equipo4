@@ -2,6 +2,7 @@ from openai import OpenAI
 from app.core.config import settings
 from app.agents.rag_service import buscar_en_kb
 from app.schemas.analisis_schema import AnalisisEntrada, PrediccionResultado
+from app.utils.token_counter import count_tokens, estimate_cost
 import logging
 
 logger = logging.getLogger(__name__)
@@ -21,55 +22,59 @@ def generar_plan_con_rag(
         # Fallback: le pasamos un JSON array vacío
         contexto_rag, citas_kb = "[]", [] 
 
-    system_prompt = """
-    Eres un coach de bienestar preventivo, empático y responsable.
-    NO eres médico. NO entregas diagnósticos ni tratamientos.
-    Tu objetivo es generar un plan de acción basado *exclusivamente* en el contexto de la base de conocimiento (KB) proporcionada, la cual está en formato JSON.
-    Debes citar tus fuentes usando el campo "cita" del JSON, en el formato [Cita: nombre_cita] al final de cada recomendación.
-    NO puedes alucinar información ni inventar fuentes.
-    Tu respuesta debe ser un plan de acción breve (3-4 recomendaciones), motivador y en español.
-    """
+    # Optimized: More concise system prompt (~30% reduction)
+    system_prompt = """Coach de salud preventivo. NO das diagnósticos.
+Genera plan de acción breve (3-4 recomendaciones) basado SOLO en el KB JSON.
+Cita fuentes: [Cita: nombre]. Máximo 150 palabras. Incluye disclaimer médico."""
 
-    user_data_summary = (
-        f"Datos del usuario: Edad: {datos.edad}, Género: {datos.genero}, "
-        f"IMC: {datos.imc}, Cintura: {datos.circunferencia_cintura} cm, "
-        f"Sueño: {datos.horas_sueno}h, Tabaco: {'Sí' if datos.tabaquismo else 'No'}, "
-        f"Actividad: {datos.actividad_fisica}."
-    )
-    
-    # El prompt de usuario AHORA inyecta un JSON
-    user_prompt = f"""
-    Contexto de la Base de Conocimiento (KB) en formato JSON:
-    ---
-    {contexto_rag}
-    ---
-    
-    Datos del Análisis:
-    - Riesgo Predicho: {prediccion.score:.2f} (Categoría: {prediccion.categoria_riesgo})
-    - Factores Clave (Drivers): {', '.join(prediccion.drivers)}
-    - {user_data_summary}
+    # Optimized: Tabular format for user data (more token-efficient)
+    altura = f"{datos.altura_cm}cm" if datos.altura_cm is not None else "N/D"
+    peso = f"{datos.peso_kg}kg" if datos.peso_kg is not None else "N/D"
+    presion = f"{datos.presion_sistolica}mmHg" if datos.presion_sistolica is not None else "N/D"
+    colesterol = f"{datos.colesterol_total}mg/dL" if datos.colesterol_total is not None else "N/D"
 
-    Tarea:
-    Basándote *exclusivamente* en el "Contexto de la Base de Conocimiento (KB) en formato JSON":
-    1. Explica brevemente qué significa un riesgo "{prediccion.categoria_riesgo}".
-    2. Ofrece 2-3 recomendaciones *concretas* para las próximas 2 semanas, usando el campo "texto" de los objetos JSON relevantes a los "Factores Clave (Drivers)".
-    3. Cita *obligatoriamente* cada recomendación con el campo "cita" del objeto JSON correspondiente (ej: [Cita: guia_metabolica_v1]).
-    4. Incluye un *disclaimer* final claro: "Recuerda que esto no es un diagnóstico médico. Consulta a un profesional de la salud."
+    user_data_table = f"""
+Usuario | Edad: {datos.edad} | Sexo: {datos.genero} | IMC: {datos.imc} | Cintura: {datos.circunferencia_cintura}cm
+Mediciones | Altura: {altura} | Peso: {peso} | Presión: {presion} | Colesterol: {colesterol}
+Hábitos | Sueño: {datos.horas_sueno}h | Tabaco: {'Sí' if datos.tabaquismo else 'No'} | Actividad: {datos.actividad_fisica}
+"""
     
-    Responde en no más de 150 palabras.
-    """
+    # Optimized: More concise user prompt
+    user_prompt = f"""KB (JSON):
+{contexto_rag}
+
+Análisis:
+• Riesgo: {prediccion.score:.2f} ({prediccion.categoria_riesgo})
+• Drivers: {', '.join(prediccion.drivers)}
+{user_data_table}
+
+Tarea: Explica riesgo "{prediccion.categoria_riesgo}" + 2-3 acciones concretas (2 semanas) usando KB. Cita cada recomendación. Max 150 palabras + disclaimer.
+"""
 
     try:
-        logger.info("Llamando a la API de OpenAI con contexto RAG (JSON)...")
+        # Log token usage before API call
+        messages_for_api = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt},
+        ]
+        
+        prompt_tokens_est = count_tokens(system_prompt) + count_tokens(user_prompt) + 10  # +10 for formatting
+        logger.info(f"📨 RAG prompt: ~{prompt_tokens_est} tokens (sistema: {count_tokens(system_prompt)}, KB+datos: {count_tokens(user_prompt)})")
+        
         completion = client.chat.completions.create(
             model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt},
-            ],
+            messages=messages_for_api,
             temperature=0.5,
+            max_tokens=500,  # Explicit limit for 150-word response (~200 tokens) + safety margin
         )
         plan_ia = completion.choices[0].message.content.strip()
+        
+        # Log actual API usage
+        if completion.usage:
+            usage = completion.usage
+            cost = estimate_cost(usage.prompt_tokens, usage.completion_tokens)
+            logger.info(f"💰 RAG API: {usage.prompt_tokens} in + {usage.completion_tokens} out = {usage.total_tokens} total (~${cost:.4f})")
+
         
         if "diagnóstico médico" not in plan_ia.lower():
              plan_ia += "\n\nRecuerda que esto no es un diagnóstico médico. Consulta a un profesional de la salud."
@@ -85,8 +90,7 @@ def generar_plan_con_rag(
     except Exception as e:
         logger.error(f"Error en la API de OpenAI: {e}")
         plan_ia = (
-            f"Tu resultado sugiere un riesgo {prediccion.categoria_riesgo}. "
-            f"Te puede ayudar mantener una alimentación equilibrada y moverte al menos 30 minutos al día. "
-            f"Esto no es un diagnóstico médico. Consulta a un profesional de la salud."
+            "El servicio de generación de planes personalizados no está disponible en este momento. "
+            "Por favor, inténtalo nuevamente más tarde."
         )
-        return plan_ia, ["guia_general_v1"]
+        return plan_ia, []

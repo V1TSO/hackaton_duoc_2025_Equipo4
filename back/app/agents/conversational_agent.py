@@ -1,12 +1,14 @@
 import logging
 from openai import OpenAI
 from pydantic import BaseModel, Field
-from typing import List, Literal
+from typing import List, Literal, Optional
 
 from app.core.config import settings
-from app.schemas.analisis_schema import AnalisisEntrada # Reutilizamos el schema del formulario
+from app.schemas.analisis_schema import AnalisisEntrada, PrediccionResultado
 from app.services.ml_service import obtener_prediccion
-from app.agents.openai_agent import generar_plan_con_rag # Reutilizamos el agente RAG
+from app.agents.openai_agent import generar_plan_con_rag
+from app.agents.sliding_window import get_optimized_history
+from app.utils.token_counter import count_messages_tokens, estimate_cost
 
 logger = logging.getLogger(__name__)
 client = OpenAI(api_key=settings.OPENAI_API_KEY)
@@ -26,11 +28,17 @@ class PredictionData(BaseModel):
     genero: Literal['M', 'F'] = Field(..., description="Sexo biológico del usuario (M o F).")
     imc: float = Field(..., description="Índice de Masa Corporal (ej: 25.4).")
     circunferencia_cintura: float = Field(..., description="Circunferencia de cintura en centímetros (ej: 92.5).")
+    altura_cm: float = Field(..., description="Altura del usuario en centímetros (ej: 170).")
+    peso_kg: float = Field(..., description="Peso del usuario en kilogramos (ej: 75.5).")
     presion_sistolica: float = Field(..., description="Presión arterial sistólica (el número más alto, ej: 120).")
     colesterol_total: float = Field(..., description="Nivel de colesterol total (ej: 200).")
     tabaquismo: bool = Field(..., description="¿El usuario fuma? (true/false).")
     actividad_fisica: str = Field(..., description="Nivel de actividad física (ej: 'sedentario', 'moderado', 'activo').")
     horas_sueno: float = Field(..., description="Horas de sueño promedio por noche (ej: 7.5).")
+    glucosa_mgdl: Optional[float] = Field(None, description="Nivel de glucosa en sangre (mg/dL), si está disponible.")
+    hdl_mgdl: Optional[float] = Field(None, description="Colesterol HDL en mg/dL (opcional).")
+    trigliceridos_mgdl: Optional[float] = Field(None, description="Triglicéridos en mg/dL (opcional).")
+    ldl_mgdl: Optional[float] = Field(None, description="Colesterol LDL en mg/dL (opcional).")
     
     # Nuevo campo de tu requisito: decidir el modelo
     modelo_a_usar: Literal['diabetes', 'cardiovascular'] = Field(
@@ -55,7 +63,11 @@ Si te faltan datos, NO llames a la herramienta. En su lugar, haz la siguiente pr
 TOOLS = [
     {
         "type": "function",
-        "function": PredictionData.model_json_schema()
+        "function": {
+            "name": "submit_for_prediction",
+            "description": "Enviar datos de salud completos para realizar predicción de riesgo cardiometabólico",
+            "parameters": PredictionData.model_json_schema()
+        }
     }
 ]
 
@@ -64,6 +76,11 @@ def process_chat_message(history: List[dict]) -> tuple[str, dict | None, bool]:
     """
     Procesa un mensaje de usuario y decide el siguiente paso.
     
+    Ahora con optimización de tokens:
+    - Aplica sliding window al historial
+    - Registra uso de tokens
+    - Mantiene contexto relevante
+    
     Returns:
         - response_content (str): La respuesta de texto del agente.
         - assessment_result (dict): El resultado de la predicción (si se hizo).
@@ -71,15 +88,48 @@ def process_chat_message(history: List[dict]) -> tuple[str, dict | None, bool]:
     """
     logger.info(f"Procesando historial de {len(history)} mensajes.")
     
-    # 1. Llamar a OpenAI con el historial y las herramientas
+    # 1. Aplicar sliding window al historial
+    optimized_history = get_optimized_history(
+        history, 
+        max_tokens=settings.TOKEN_BUDGET_HISTORY
+    )
+    
+    # Log de optimización
+    original_tokens = count_messages_tokens(history)
+    optimized_tokens = count_messages_tokens(optimized_history)
+    tokens_saved = original_tokens - optimized_tokens
+    
+    if tokens_saved > 0:
+        logger.info(f"✂️  Sliding window aplicado: {original_tokens} → {optimized_tokens} tokens (ahorro: {tokens_saved})")
+    else:
+        logger.info(f"📊 Historial optimizado: {optimized_tokens} tokens (sin compresión necesaria)")
+    
+    # 2. Construir mensajes para OpenAI
+    system_message = {"role": "system", "content": SYSTEM_PROMPT}
+    messages_for_api = [system_message] + optimized_history
+    
+    # Contar tokens totales de entrada
+    input_tokens = count_messages_tokens(messages_for_api)
+    logger.info(f"📨 Tokens de entrada: {input_tokens} (sistema: {count_messages_tokens([system_message])}, historial: {optimized_tokens})")
+    
+    # 3. Llamar a OpenAI con el historial optimizado
     try:
         completion = client.chat.completions.create(
-            model="gpt-4o-mini", # gpt-4o-mini es bueno y rápido para tool calling
-            messages=[{"role": "system", "content": SYSTEM_PROMPT}] + history,
+            model="gpt-4o-mini",
+            messages=messages_for_api,
             tools=TOOLS,
             tool_choice="auto"
         )
         response_message = completion.choices[0].message
+        
+        # Registrar uso de tokens de la API
+        usage = completion.usage
+        if usage:
+            output_tokens = usage.completion_tokens
+            total_tokens = usage.total_tokens
+            cost = estimate_cost(usage.prompt_tokens, output_tokens)
+            logger.info(f"💰 API Usage: {usage.prompt_tokens} in + {output_tokens} out = {total_tokens} total (~${cost:.4f})")
+        
     except Exception as e:
         logger.error(f"Error en API de OpenAI: {e}")
         return "Lo siento, tuve un problema al procesar tu solicitud. Intenta de nuevo.", None, False
@@ -105,19 +155,32 @@ def process_chat_message(history: List[dict]) -> tuple[str, dict | None, bool]:
             # 2b. Llamar al servicio de predicción (nuestro /predict)
             # Pasamos los datos como AnalisisEntrada
             # (El schema es casi idéntico, Pydantic se encarga)
-            ml_input = AnalisisEntrada(**tool_data.model_dump()) 
+            tool_payload = tool_data.model_dump()
+            modelo_elegido = tool_payload.pop("modelo_a_usar")
+
+            ml_input = AnalisisEntrada(
+                modelo=modelo_elegido,
+                **tool_payload
+            )
             
             # Aquí es donde realmente llamarías al modelo de 'diabetes' o 'cardiovascular'
             # Por ahora, ambos llaman al mismo servicio de Colab
-            pred_result = obtener_prediccion(ml_input)
+            pred_result = obtener_prediccion(ml_input, model_type=modelo_elegido)
             
             if "error" in pred_result:
                 return f"Tuve problemas al calcular tu predicción: {pred_result['error']}", None, False
 
             # 2c. Generar respuesta humanizada (nuestro /coach RAG)
             # Usamos el resultado de la predicción y los datos de entrada
+            prediccion_schema = PrediccionResultado(
+                score=pred_result['score'],
+                drivers=pred_result['drivers'],
+                categoria_riesgo=pred_result['categoria_riesgo'],
+                model_used=pred_result.get('model_used', modelo_elegido)
+            )
+
             plan_ia, citas_kb = generar_plan_con_rag(
-                prediccion=pred_result,
+                prediccion=prediccion_schema,
                 datos=ml_input
             )
 
@@ -132,7 +195,10 @@ def process_chat_message(history: List[dict]) -> tuple[str, dict | None, bool]:
                 "assessment_data": tool_data.model_dump(),
                 "risk_score": pred_result['score'],
                 "risk_level": pred_result['categoria_riesgo'].lower(), # 'low', 'moderate', 'high'
-                "drivers": pred_result['drivers']
+                "drivers": pred_result['drivers'],
+                "model_used": pred_result.get('model_used', modelo_elegido),
+                "plan_text": plan_ia,
+                "citations": citas_kb
             }
             
             return final_response_text, assessment_data, True

@@ -1,0 +1,9 @@
+{
+  "top_features": [
+    "bmi_age_interaction",
+    "waist_height_ratio",
+    "waist_age_interaction",
+    "age",
+    "bmi_age_sex_interaction"
+  ]
+}

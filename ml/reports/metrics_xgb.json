@@ -1,0 +1,11 @@
+{
+  "auroc": 0.7575188106575552,
+  "auprc": 0.5526842461261288,
+  "brier": 0.19869777281355772,
+  "best_iteration": 600,
+  "n_train": 5239,
+  "n_test": 4954,
+  "scale_pos_weight": 2.442181340341656,
+  "calibration_method": "sin_calibrar",
+  "brier_calibrated": 0.19869777281355772
+}

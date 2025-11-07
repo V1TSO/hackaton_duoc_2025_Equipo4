@@ -28,6 +28,9 @@ export interface MessageResponse {
   action: "continue" | "redirect_results" | "redirect_coach";
   redirect_url?: string;
   assessment_id?: string;
+  session_id?: string;
+  prediction_made?: boolean;
+  model_used?: string;
 }
 
 export interface ConversationState {

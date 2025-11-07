@@ -31,3 +31,5 @@ class ChatMessageOutput(BaseModel):
     response: ChatMessage # La respuesta del asistente
     history: List[ChatMessage] # El historial actualizado
     prediction_made: bool = False # Flag para que el frontend sepa si se completó
+    model_used: Optional[str] = None
+    assessment_id: Optional[uuid.UUID] = None

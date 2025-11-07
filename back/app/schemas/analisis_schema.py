@@ -14,15 +14,22 @@ class AnalisisEntrada(BaseModel):
     fecha: Optional[date] = date.today()
     imc: Optional[float] = None
     circunferencia_cintura: Optional[float] = None
+    altura_cm: Optional[float] = None
+    peso_kg: Optional[float] = None
     presion_sistolica: Optional[float] = None
     colesterol_total: Optional[float] = None # ¡Cuidado! Asegúrate que esto no sea un "data leak" (Rúbrica 4)
     tabaquismo: Optional[bool] = None
     actividad_fisica: Optional[str] = None # Ej: "sedentario", "moderado", "activo"
     horas_sueno: Optional[float] = None
+    glucosa_mgdl: Optional[float] = None
+    hdl_mgdl: Optional[float] = None
+    trigliceridos_mgdl: Optional[float] = None
+    ldl_mgdl: Optional[float] = None
     
     # Datos demográficos (Necesarios para el ML)
     edad: Optional[int] = None 
     genero: Optional[str] = None # Ej: "M", "F"
+    modelo: Optional[str] = "diabetes"
 
     class Config:
         from_attributes = True
@@ -40,6 +47,7 @@ class PrediccionResultado(BaseModel):
     score: float # El riesgo predicho (0.0 a 1.0)
     drivers: List[str] # Lista de las 3-5 features que más influyeron
     categoria_riesgo: str # "Bajo", "Moderado", "Alto"
+    model_used: Optional[str] = "diabetes"
 
     class Config:
         from_attributes = True
@@ -70,6 +78,7 @@ class CoachResultado(BaseModel):
     plan_ia: str # El plan de acción (tu 'recomendacion_ia' renombrada)
     citas_kb: List[str] # Lista de fuentes de /kb usadas (REQUISITO B2)
     fuente_modelo: str = "NHANES_XGB_v1" # Esto está bien
+    model_used: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -91,6 +100,8 @@ class AnalisisRegistro(BaseModel):
     fecha: Optional[date] = None
     imc: Optional[float] = None
     circunferencia_cintura: Optional[float] = None
+    altura_cm: Optional[float] = None
+    peso_kg: Optional[float] = None
     presion_sistolica: Optional[float] = None
     colesterol_total: Optional[float] = None
     tabaquismo: Optional[bool] = None
@@ -98,6 +109,11 @@ class AnalisisRegistro(BaseModel):
     horas_sueno: Optional[float] = None
     edad: Optional[int] = None
     genero: Optional[str] = None
+    glucosa_mgdl: Optional[float] = None
+    hdl_mgdl: Optional[float] = None
+    trigliceridos_mgdl: Optional[float] = None
+    ldl_mgdl: Optional[float] = None
+    modelo: Optional[str] = "diabetes"
 
     # Datos de salida (predicción + coach)
     riesgo_predicho: Optional[float] = None
@@ -106,6 +122,7 @@ class AnalisisRegistro(BaseModel):
     recomendacion_ia: Optional[str] = None # El plan
     citas_kb: Optional[List[str]] = None # ¡Guardar las citas!
     fuente_modelo: Optional[str] = "NHANES_XGB_v1"
+    model_used: Optional[str] = None
 
     class Config:
         from_attributes = True

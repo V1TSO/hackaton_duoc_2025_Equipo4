@@ -1,0 +1,25 @@
+{
+  "extractor": {
+    "purpose": "Convertir texto libre del usuario en un JSON validado",
+    "model": "gpt-4o",
+    "temperature": 0,
+    "max_tokens": 1000,
+    "guardrails": [
+      "Usar únicamente información presente en el texto",
+      "Convertir unidades a sistema métrico",
+      "Validar contra USER_PROFILE_SCHEMA"
+    ]
+  },
+  "coach": {
+    "purpose": "Generar plan personalizado usando RAG y explicaciones SHAP",
+    "model": "gpt-4o",
+    "temperature": 0.7,
+    "max_tokens": 2000,
+    "guardrails": [
+      "Usar únicamente contenido de /kb",
+      "Citar fuentes con [archivo.md]",
+      "Incluir disclaimer médico",
+      "Derivar si risk_score >= 70%"
+    ]
+  }
+}
