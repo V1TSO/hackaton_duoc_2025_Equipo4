@@ -140,7 +140,7 @@ def process_chat_message(history: List[dict]) -> tuple[str, dict | None, bool]:
             
             # Preparamos el dict para la tabla 'assessments'
             assessment_data = {
-                "assessment_data": tool_data.model_dump(),
+                "assessment_data": user_input_data,
                 "risk_score": pred_result['score'],
                 "risk_level": pred_result['categoria_riesgo'].lower(), # 'low', 'moderate', 'high'
                 "drivers": json.dumps(pred_result['drivers']) # Aseguramos que 'drivers' sea JSON

@@ -39,13 +39,27 @@ class AnalisisEntrada(BaseModel):
 # REQUISITO A4: Respuesta del endpoint /predict
 # (Este schema es NUEVO y CRÍTICO)
 # ---------------------------------------------------------------------------
+class DriverExplicacion(BaseModel):
+    """
+    Representa un factor que contribuye al riesgo con explicabilidad completa.
+    """
+    feature: str
+    description: str
+    value: Optional[float] = None
+    shap_value: float
+    impact: str  # "aumenta" o "reduce"
+
+    class Config:
+        from_attributes = True
+
+
 class PrediccionResultado(BaseModel):
     """
     Respuesta del endpoint /predict.
     Debe devolver el score y los drivers (explicabilidad).
     """
     score: float # El riesgo predicho (0.0 a 1.0)
-    drivers: List[str] # Lista de las 3-5 features que más influyeron
+    drivers: List[DriverExplicacion] # Lista de los factores con explicabilidad completa
     categoria_riesgo: str # "Bajo", "Moderado", "Alto"
     model_used: Optional[str] = "diabetes"
 
@@ -118,7 +132,7 @@ class AnalisisRegistro(BaseModel):
     # Datos de salida (predicción + coach)
     riesgo_predicho: Optional[float] = None
     categoria_riesgo: Optional[str] = None
-    drivers: Optional[List[str]] = None # ¡Guardar los drivers!
+    drivers: Optional[List[DriverExplicacion]] = None # ¡Guardar los drivers con explicabilidad!
     recomendacion_ia: Optional[str] = None # El plan
     citas_kb: Optional[List[str]] = None # ¡Guardar las citas!
     fuente_modelo: Optional[str] = "NHANES_XGB_v1"

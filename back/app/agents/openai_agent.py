@@ -15,8 +15,12 @@ def generar_plan_con_rag(
 ) -> tuple[str, list[str]]:
     
     logger.info(f"Generando plan RAG (JSON-Input) para riesgo: {prediccion.categoria_riesgo}")
+    
+    # Extract feature names from driver objects for KB search
+    driver_features = [d.feature if hasattr(d, 'feature') else str(d) for d in prediccion.drivers]
+    
     try:
-        contexto_rag, citas_kb = buscar_en_kb(prediccion.drivers)
+        contexto_rag, citas_kb = buscar_en_kb(driver_features)
     except Exception as e:
         logger.error(f"Fallo en 'buscar_en_kb': {e}")
         # Fallback: le pasamos un JSON array vacío
@@ -44,13 +48,16 @@ Mediciones | Altura: {altura} | Peso: {peso} | Presión: {presion} | Colesterol:
 Hábitos | Sueño: {datos.horas_sueno}h | Tabaco: {'Sí' if datos.tabaquismo else 'No'} | Actividad: {datos.actividad_fisica}
 """
     
+    # Extract driver descriptions for the prompt
+    driver_descriptions = [d.description if hasattr(d, 'description') else str(d) for d in prediccion.drivers]
+    
     # Optimized: More concise user prompt
     user_prompt = f"""KB (JSON):
 {contexto_rag}
 
 Análisis:
 • Riesgo: {prediccion.score:.2f} ({prediccion.categoria_riesgo})
-• Drivers: {', '.join(prediccion.drivers)}
+• Drivers: {', '.join(driver_descriptions)}
 {user_data_table}
 
 Tarea: Explica riesgo "{prediccion.categoria_riesgo}" + 2-3 acciones concretas (2 semanas) usando KB. Cita cada recomendación. Max 150 palabras + disclaimer.

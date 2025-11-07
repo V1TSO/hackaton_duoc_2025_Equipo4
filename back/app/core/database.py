@@ -229,6 +229,25 @@ def save_assessment(user_id: str, data: dict, access_token: Optional[str] = None
             "plan_text": assessment_payload.pop("plan_text", None),
             "citations": assessment_payload.pop("citations", None),
         }
+
+        model_used = assessment_payload.pop("model_used", None)
+        if model_used:
+            enriched_assessment_data.setdefault("model_used", model_used)
+
+        risk_level = assessment_payload.get("risk_level")
+        if risk_level is not None:
+            risk_mapping = {
+                "Bajo": "low",
+                "Moderado": "moderate",
+                "Alto": "high",
+                "low": "low",
+                "moderate": "moderate",
+                "high": "high",
+            }
+            normalized_risk = risk_mapping.get(risk_level, str(risk_level).lower())
+            assessment_payload["risk_level"] = normalized_risk
+            logger.info(f"Normalized risk_level from '{risk_level}' to '{normalized_risk}'")
+ 
         assessment_payload["assessment_data"] = enriched_assessment_data
         assessment_payload["user_id"] = user_id
         res = supabase.table("assessments").insert(assessment_payload).execute()

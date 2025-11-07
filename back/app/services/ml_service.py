@@ -64,11 +64,12 @@ def obtener_prediccion(data: AnalisisEntrada, model_type: str | None = None) -> 
             ldl_mgdl=data.ldl_mgdl
         )
         
-        drivers_list = [d['feature'] for d in result['drivers']]
+        # Preserve full driver objects with descriptions, values, and impact
+        drivers_full = result['drivers']
         
         return {
             "score": result["score"],
-            "drivers": drivers_list,
+            "drivers": drivers_full,
             "categoria_riesgo": result["risk_level"],
             "model_used": result.get("model_used", selected_model)
         }

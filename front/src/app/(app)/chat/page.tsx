@@ -3,14 +3,12 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Send, Bot, User, RotateCcw, ArrowRight } from "lucide-react";
+import { Send, Bot, User, ArrowRight } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { healthAPI } from "@/lib/api/client";
 import { createClient } from "@/lib/supabase/client";
 import { LoadingSpinner, PermanentDisclaimer } from "@/components";
 import type { ConversationMessage } from "@/lib/types";
-
-const STORAGE_KEY = "conversation-draft";
 
 export default function AssessmentPage() {
   const router = useRouter();
@@ -40,14 +38,12 @@ export default function AssessmentPage() {
           return;
         }
 
-        // 2. Load most recent session for current user from Supabase
-        // Only load sessions that don't have an assessment_id (incomplete sessions)
+        // 2. Load the user's session from Supabase (there's only one per user)
         const { data: sessionData, error: sessionError } = await supabase
           .from("chat_sessions")
           .select("id, assessment_id")
           .eq("user_id", user.id)
-          .is("assessment_id", null)  // Only get sessions without completed assessment
-          .order("updated_at", { ascending: false })
+          .order("created_at", { ascending: false })
           .limit(1);
 
         if (sessionError) {
@@ -57,10 +53,18 @@ export default function AssessmentPage() {
           return;
         }
 
-        // 3. If we have a recent incomplete session, load its messages
+        // 3. If we have a session, check if it has a completed assessment
         if (sessionData && sessionData.length > 0) {
           const activeSessionId = sessionData[0].id;
+          const assessmentId = sessionData[0].assessment_id;
           
+          // If there's already an assessment, redirect to coach page
+          if (assessmentId) {
+            router.push(`/coach?assessment=${assessmentId}`);
+            return;
+          }
+          
+          // Load existing messages for incomplete session
           const { data: historyData, error: historyError } = await supabase
             .from("chat_messages")
             .select("id, role, content, created_at")
@@ -105,20 +109,7 @@ export default function AssessmentPage() {
     };
 
     loadHistory();
-  }, []);
-
-  // Save to localStorage only as a temporary backup (not used for persistence)
-  useEffect(() => {
-    if (typeof window !== "undefined" && sessionId) {
-      localStorage.setItem(
-        STORAGE_KEY,
-        JSON.stringify({
-          messages,
-          sessionId,
-        })
-      );
-    }
-  }, [messages, sessionId]);
+  }, [router]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -164,15 +155,13 @@ export default function AssessmentPage() {
 
       setMessages((prev) => [...prev, assistantMessage]);
 
-      // If prediction is complete, redirect to results
+      // If prediction is complete, redirect to coach page
       if (response.prediction_made) {
-        localStorage.removeItem(STORAGE_KEY);
-
         setTimeout(() => {
           if (response.assessment_id) {
             router.push(`/coach?assessment=${response.assessment_id}`);
           } else {
-            router.push(`/history`);
+            router.push(`/coach`);
           }
         }, 1500);
       }
@@ -209,31 +198,6 @@ export default function AssessmentPage() {
     }
   };
 
-  const handleRestartChat = () => {
-    if (confirm("¿Estás seguro de que quieres iniciar una nueva conversación? Tu conversación actual quedará guardada.")) {
-      // Clear localStorage
-      if (typeof window !== "undefined") {
-        localStorage.removeItem(STORAGE_KEY);
-      }
-      
-      // Reset state to start a new session
-      setSessionId(null);  // This will force backend to create a new session
-      setModelUsed(null);
-      setAssessmentId(null);
-      setError(null);
-      setInput("");
-      
-      // Show welcome message
-      const welcomeMessage: ConversationMessage = {
-        id: "welcome",
-        role: "assistant",
-        content: "¡Hola! Soy tu asistente de salud CardioSense 🩺\n\nVoy a ayudarte a evaluar tu riesgo cardiometabólico de manera conversacional. Solo cuéntame sobre ti de forma natural, como si conversáramos.\n\nPor ejemplo, puedes decirme: \"Tengo 35 años, mido 170cm, peso 75kg y mi cintura mide 85cm. Duermo unas 7 horas y hago ejercicio 3 veces por semana.\"\n\n¿Qué me puedes contar sobre ti?",
-        timestamp: new Date(),
-      };
-      setMessages([welcomeMessage]);
-    }
-  };
-
   return (
     <div className="h-screen flex flex-col bg-gradient-to-br from-red-50 via-white to-pink-50">
       <div className="bg-gradient-to-r from-red-600 via-pink-600 to-red-600 text-white px-4 sm:px-6 lg:px-8 py-6 shadow-lg">
@@ -244,24 +208,12 @@ export default function AssessmentPage() {
                 <Bot className="h-8 w-8 text-white" />
               </div>
               <div>
-                <h1 className="text-3xl font-bold">Evaluación Conversacional</h1>
+                <h1 className="text-3xl font-bold">Evaluación de Salud</h1>
                 <p className="text-red-100 text-base">
                   Cuéntame sobre tu salud de forma natural
-                  {sessionId && <span className="ml-2 text-xs opacity-75">• Sesión activa</span>}
                 </p>
               </div>
             </div>
-            
-            {messages.length > 1 && (
-              <button
-                onClick={handleRestartChat}
-                className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 rounded-lg transition-all text-sm font-medium backdrop-blur-sm"
-                title="Reiniciar conversación"
-              >
-                <RotateCcw className="h-4 w-4" />
-                <span className="hidden sm:inline">Reiniciar Chat</span>
-              </button>
-            )}
           </div>
         </div>
       </div>
@@ -320,13 +272,6 @@ export default function AssessmentPage() {
                   </div>
                 )}
 
-                {messages.length > 1 && sessionId && (
-                  <div className="bg-blue-50 border-l-4 border-blue-500 p-4 rounded-lg">
-                    <p className="text-sm text-blue-900">
-                      <strong>💬 Conversación continuada</strong> - Se han cargado {messages.length} mensajes previos
-                    </p>
-                  </div>
-                )}
                 
                 {messages.map((message) => (
               <div

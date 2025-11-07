@@ -139,15 +139,18 @@ def predict_risk(
 
 
 def _interpret_risk(score: float) -> tuple[str, str]:
+    """
+    Returns (risk_level, recommendation) where risk_level is in English for DB storage.
+    """
     if score < 0.3:
-        return "Bajo", "Mantener hábitos saludables"
+        return "low", "Mantener hábitos saludables"
     if score < 0.6:
-        return "Moderado", "Mejorar estilo de vida con coaching personalizado"
+        return "moderate", "Mejorar estilo de vida con coaching personalizado"
 
     recommendation = "Consultar con profesional de salud urgentemente"
     if score >= REFERRAL_THRESHOLD:
         recommendation += " y coordinar evaluación médica profesional"
-    return "Alto", recommendation
+    return "high", recommendation
 
 
 def _get_diabetes_drivers(model, features_df: pd.DataFrame, feature_names: List[str]) -> List[Dict[str, Any]]:
