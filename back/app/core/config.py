@@ -4,10 +4,9 @@ from pathlib import Path
 from typing import Optional
 
 class Settings(BaseSettings):
-    SUPABASE_URL: str
-    SUPABASE_ANON_KEY: str
-    OPENAI_API_KEY: str
-    COLAB_URL: Optional[str] = None
+    SUPABASE_URL: Optional[str] = None
+    SUPABASE_ANON_KEY: Optional[str] = None
+    OPENAI_API_KEY: Optional[str] = None
     
     # Token Budget Configuration
     TOKEN_BUDGET_TOTAL: int = 8000
@@ -38,6 +37,7 @@ class Settings(BaseSettings):
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"
+        extra = "ignore"
 
 @lru_cache()
 def get_settings():

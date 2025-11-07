@@ -232,10 +232,8 @@ def build_feature_frame(
     )
     
     if feature_names:
-        for feat in feature_names:
-            if feat not in features_df.columns:
-                features_df[feat] = 0
-        features_df = features_df[feature_names]
+        # Efficiently add missing features using reindex (avoids DataFrame fragmentation)
+        features_df = features_df.reindex(columns=feature_names, fill_value=0)
     
     return features_df
 

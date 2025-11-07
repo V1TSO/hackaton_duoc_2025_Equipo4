@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Send, Bot, User, ArrowRight } from "lucide-react";
+import { Send, Bot, User, ArrowRight, AlertCircle } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { healthAPI } from "@/lib/api/client";
 import { createClient } from "@/lib/supabase/client";
@@ -20,6 +20,7 @@ export default function AssessmentPage() {
   const [modelUsed, setModelUsed] = useState<string | null>(null);
   const [assessmentId, setAssessmentId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [existingAssessment, setExistingAssessment] = useState<{ id: string; created_at: string } | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -38,7 +39,21 @@ export default function AssessmentPage() {
           return;
         }
 
-        // 2. Load the user's session from Supabase (there's only one per user)
+        // 2. Check for existing assessments
+        const { data: assessments } = await supabase
+          .from("assessments")
+          .select("id, created_at")
+          .eq("user_id", user.id)
+          .order("created_at", { ascending: false })
+          .limit(1);
+
+        if (assessments && assessments.length > 0) {
+          setExistingAssessment(assessments[0]);
+          setIsLoadingHistory(false);
+          return;
+        }
+
+        // 3. Load the user's session from Supabase (there's only one per user)
         const { data: sessionData, error: sessionError } = await supabase
           .from("chat_sessions")
           .select("id, assessment_id")
@@ -53,41 +68,37 @@ export default function AssessmentPage() {
           return;
         }
 
-        // 3. If we have a session, check if it has a completed assessment
+        // 4. If we have an incomplete session, load its messages
         if (sessionData && sessionData.length > 0) {
           const activeSessionId = sessionData[0].id;
           const assessmentId = sessionData[0].assessment_id;
           
-          // If there's already an assessment, redirect to coach page
-          if (assessmentId) {
-            router.push(`/coach?assessment=${assessmentId}`);
-            return;
-          }
-          
-          // Load existing messages for incomplete session
-          const { data: historyData, error: historyError } = await supabase
-            .from("chat_messages")
-            .select("id, role, content, created_at")
-            .eq("session_id", activeSessionId)
-            .order("created_at", { ascending: true });
+          // Only load previous messages if the session is incomplete (no assessment yet)
+          if (!assessmentId) {
+            const { data: historyData, error: historyError } = await supabase
+              .from("chat_messages")
+              .select("id, role, content, created_at")
+              .eq("session_id", activeSessionId)
+              .order("created_at", { ascending: true });
 
-          if (!historyError && historyData && historyData.length > 0) {
-            // Convert Supabase messages to ConversationMessage format
-            const loadedMessages: ConversationMessage[] = historyData.map((msg) => ({
-              id: msg.id,
-              role: msg.role as "user" | "assistant",
-              content: msg.content,
-              timestamp: new Date(msg.created_at),
-            }));
-            
-            setMessages(loadedMessages);
-            setSessionId(activeSessionId);
-            setIsLoadingHistory(false);
-            return;
+            if (!historyError && historyData && historyData.length > 0) {
+              // Convert Supabase messages to ConversationMessage format
+              const loadedMessages: ConversationMessage[] = historyData.map((msg) => ({
+                id: msg.id,
+                role: msg.role as "user" | "assistant",
+                content: msg.content,
+                timestamp: new Date(msg.created_at),
+              }));
+              
+              setMessages(loadedMessages);
+              setSessionId(activeSessionId);
+              setIsLoadingHistory(false);
+              return;
+            }
           }
         }
 
-        // 4. No active session found, show welcome message
+        // 5. No active session found, show welcome message
         showWelcomeMessage();
         
       } catch (error) {
@@ -242,6 +253,37 @@ export default function AssessmentPage() {
                   <p className="mt-4 text-gray-600 font-medium">Cargando historial...</p>
                 </div>
               </div>
+            ) : existingAssessment ? (
+              <div className="flex items-center justify-center h-full">
+                <div className="max-w-2xl bg-yellow-50 border-2 border-yellow-300 rounded-2xl p-8 text-center">
+                  <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-yellow-100 text-yellow-600 mb-4">
+                    <AlertCircle className="h-8 w-8" />
+                  </div>
+                  <h2 className="text-2xl font-bold text-gray-900 mb-2">
+                    Ya tienes un plan activo
+                  </h2>
+                  <p className="text-gray-700 mb-6">
+                    Solo puedes tener un plan de salud activo a la vez. 
+                    Puedes ver tu plan actual o eliminarlo para crear uno nuevo.
+                  </p>
+                  <div className="flex gap-3 justify-center">
+                    <Link
+                      href={`/coach?assessment=${existingAssessment.id}`}
+                      className="inline-flex items-center gap-2 px-6 py-3 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 transition-colors"
+                    >
+                      Ver mi plan
+                      <ArrowRight className="h-5 w-5" />
+                    </Link>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-6">
+                    Creado el {new Date(existingAssessment.created_at).toLocaleDateString("es-CL", {
+                      year: "numeric",
+                      month: "long",
+                      day: "numeric",
+                    })}
+                  </p>
+                </div>
+              </div>
             ) : (
               <>
                 {modelUsed && (
@@ -376,7 +418,7 @@ export default function AssessmentPage() {
                   onChange={(e) => setInput(e.target.value)}
                   onKeyPress={handleKeyPress}
                   placeholder="Escribe tus datos aquí... (Presiona Enter para enviar)"
-                  className="flex-1 px-5 py-4 border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-red-500 focus:border-red-500 resize-none transition-all text-base"
+                  className="flex-1 px-5 py-4 border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-red-500 focus:border-red-500 resize-none transition-all text-base bg-white text-gray-900 placeholder:text-gray-400"
                   rows={2}
                   disabled={isLoading}
                 />

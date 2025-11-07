@@ -69,7 +69,7 @@ export default function RegisterPage() {
                       name="firstName"
                       type="text"
                       required
-                      className="w-full pl-10 pr-3 py-2.5 rounded-lg border border-gray-300 bg-white text-sm outline-none transition focus:border-red-500 focus:ring-2 focus:ring-red-200"
+                      className="w-full pl-10 pr-3 py-2.5 rounded-lg border border-gray-300 bg-white text-gray-900 text-sm outline-none transition focus:border-red-500 focus:ring-2 focus:ring-red-200 placeholder:text-gray-400"
                       placeholder="Juan"
                     />
                   </div>
@@ -86,7 +86,7 @@ export default function RegisterPage() {
                       name="lastName"
                       type="text"
                       required
-                      className="w-full pl-10 pr-3 py-2.5 rounded-lg border border-gray-300 bg-white text-sm outline-none transition focus:border-red-500 focus:ring-2 focus:ring-red-200"
+                      className="w-full pl-10 pr-3 py-2.5 rounded-lg border border-gray-300 bg-white text-gray-900 text-sm outline-none transition focus:border-red-500 focus:ring-2 focus:ring-red-200 placeholder:text-gray-400"
                       placeholder="Pérez"
                     />
                   </div>
@@ -105,7 +105,7 @@ export default function RegisterPage() {
                     type="email"
                     required
                     autoComplete="email"
-                    className="w-full pl-10 pr-3 py-2.5 rounded-lg border border-gray-300 bg-white text-sm outline-none transition focus:border-red-500 focus:ring-2 focus:ring-red-200"
+                    className="w-full pl-10 pr-3 py-2.5 rounded-lg border border-gray-300 bg-white text-gray-900 text-sm outline-none transition focus:border-red-500 focus:ring-2 focus:ring-red-200 placeholder:text-gray-400"
                     placeholder="tu@email.com"
                   />
                 </div>
@@ -125,7 +125,7 @@ export default function RegisterPage() {
                       min="18"
                       max="120"
                       required
-                      className="w-full pl-10 pr-3 py-2.5 rounded-lg border border-gray-300 bg-white text-sm outline-none transition focus:border-red-500 focus:ring-2 focus:ring-red-200"
+                      className="w-full pl-10 pr-3 py-2.5 rounded-lg border border-gray-300 bg-white text-gray-900 text-sm outline-none transition focus:border-red-500 focus:ring-2 focus:ring-red-200 placeholder:text-gray-400"
                       placeholder="25"
                     />
                   </div>
@@ -139,7 +139,7 @@ export default function RegisterPage() {
                     id="sex"
                     name="sex"
                     required
-                    className="w-full px-3 py-2.5 rounded-lg border border-gray-300 bg-white text-sm outline-none transition focus:border-red-500 focus:ring-2 focus:ring-red-200"
+                    className="w-full px-3 py-2.5 rounded-lg border border-gray-300 bg-white text-gray-900 text-sm outline-none transition focus:border-red-500 focus:ring-2 focus:ring-red-200"
                   >
                     <option value="">Seleccionar</option>
                     <option value="M">Masculino</option>
@@ -160,7 +160,7 @@ export default function RegisterPage() {
                     type="password"
                     required
                     autoComplete="new-password"
-                    className="w-full pl-10 pr-3 py-2.5 rounded-lg border border-gray-300 bg-white text-sm outline-none transition focus:border-red-500 focus:ring-2 focus:ring-red-200"
+                    className="w-full pl-10 pr-3 py-2.5 rounded-lg border border-gray-300 bg-white text-gray-900 text-sm outline-none transition focus:border-red-500 focus:ring-2 focus:ring-red-200 placeholder:text-gray-400"
                     placeholder="••••••••"
                   />
                 </div>
@@ -179,7 +179,7 @@ export default function RegisterPage() {
                     type="password"
                     required
                     autoComplete="new-password"
-                    className="w-full pl-10 pr-3 py-2.5 rounded-lg border border-gray-300 bg-white text-sm outline-none transition focus:border-red-500 focus:ring-2 focus:ring-red-200"
+                    className="w-full pl-10 pr-3 py-2.5 rounded-lg border border-gray-300 bg-white text-gray-900 text-sm outline-none transition focus:border-red-500 focus:ring-2 focus:ring-red-200 placeholder:text-gray-400"
                     placeholder="••••••••"
                   />
                 </div>

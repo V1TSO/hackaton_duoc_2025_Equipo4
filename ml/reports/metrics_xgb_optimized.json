@@ -1,0 +1,49 @@
+{
+  "timestamp": "2025-11-07T06:31:09.198837",
+  "model_type": "XGBoost + Calibration",
+  "baseline_metrics": {
+    "auroc": 0.7575188106575552,
+    "brier": 0.19869777281355772
+  },
+  "optimized_metrics": {
+    "auroc": 0.7700297969390333,
+    "brier": 0.17678248392448107,
+    "auprc": 0.5662174260562016
+  },
+  "improvements": {
+    "brier_absolute": 0.02191528888907665,
+    "brier_relative_pct": 11.029458749716447,
+    "auroc_absolute": 0.012510986281478065,
+    "auroc_relative_pct": 1.6515743378858212
+  },
+  "optimization_steps": {
+    "hyperparameter_tuning": {
+      "brier": 0.19738209703807255,
+      "best_params": {
+        "gamma": 0,
+        "learning_rate": 0.01,
+        "max_depth": 5,
+        "min_child_weight": 3,
+        "n_estimators": 400,
+        "reg_alpha": 0.5,
+        "reg_lambda": 1
+      }
+    },
+    "calibration": {
+      "method": "sigmoid",
+      "brier_sigmoid": 0.17707203639629332,
+      "brier_isotonic": 0.1770936265974898
+    },
+    "temperature_scaling": {
+      "used": true,
+      "temperature": 1.0773437500000003,
+      "brier": 0.17678248392448107
+    }
+  },
+  "rubric_scoring": {
+    "brier_threshold_0.12": false,
+    "brier_threshold_0.15": false,
+    "brier_threshold_0.18": true,
+    "estimated_points": 3
+  }
+}

@@ -1,12 +1,10 @@
-# HealthAI Backend
+---
+title: Cardiosense
+emoji: 🏃
+colorFrom: gray
+colorTo: gray
+sdk: docker
+pinned: false
+---
 
-### Stack:
-- FastAPI (API principal)
-- Supabase (auth y BD)
-- OpenAI (coach IA)
-- Colab (modelo ML)
-
-### Ejecutar localmente:
-```bash
-pip install -r requirements.txt
-uvicorn main:app --reload
+Check out the configuration reference at https://huggingface.co/docs/hub/spaces-config-reference

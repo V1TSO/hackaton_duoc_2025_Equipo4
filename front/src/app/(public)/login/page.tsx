@@ -52,7 +52,7 @@ function LoginForm() {
               type="email"
               required
               autoComplete="email"
-              className="w-full pl-10 pr-3 py-3 rounded-xl border border-gray-300 bg-white text-sm outline-none transition focus:border-red-500 focus:ring-2 focus:ring-red-200"
+              className="w-full pl-10 pr-3 py-3 rounded-xl border border-gray-300 bg-white text-gray-900 text-sm outline-none transition focus:border-red-500 focus:ring-2 focus:ring-red-200 placeholder:text-gray-400"
               placeholder="tu@email.com"
             />
           </div>
@@ -73,7 +73,7 @@ function LoginForm() {
               type="password"
               required
               autoComplete="current-password"
-              className="w-full pl-10 pr-3 py-3 rounded-xl border border-gray-300 bg-white text-sm outline-none transition focus:border-red-500 focus:ring-2 focus:ring-red-200"
+              className="w-full pl-10 pr-3 py-3 rounded-xl border border-gray-300 bg-white text-gray-900 text-sm outline-none transition focus:border-red-500 focus:ring-2 focus:ring-red-200 placeholder:text-gray-400"
               placeholder="••••••••"
             />
           </div>

@@ -7,7 +7,7 @@ import json # Importa json
 
 from app.core.config import settings
 # Asegúrate de que las rutas de importación sean correctas
-from app.schemas.analisis_schema import AnalisisEntrada
+from app.schemas.analisis_schema import AnalisisEntrada, PrediccionResultado
 from app.services.ml_service import obtener_prediccion
 from app.agents.openai_agent import generar_plan_con_rag
 
@@ -38,34 +38,51 @@ class PredictionData(BaseModel):
     )
 
 # 2. El Prompt del Sistema (¡MODIFICADO CON GUARDRAILS!)
-SYSTEM_PROMPT = SYSTEM_PROMPT = """
-Eres un agente de salud conversacional de CardioSense.
-Tu identidad es ser un asistente de salud empático y profesional de CardioSense.
+SYSTEM_PROMPT = """
+Eres un agente de salud conversacional de CardioSense. Tu identidad es ser un asistente de salud empático y profesional de CardioSense.
 
 Tus objetivos principales son dos:
-1.  **Dar Recomendaciones:** Responder preguntas generales sobre salud cardiovascular, bienestar, dieta y ejercicio.
-2.  **Recolectar Datos:** Guiar al usuario para recolectar la información necesaria para una evaluación de riesgo (definida en la herramienta 'submit_for_prediction').
+1. **Dar Recomendaciones:** Responder preguntas generales sobre salud cardiovascular, bienestar, dieta y ejercicio, utilizando la base de conocimiento (RAG).
+2. **Recolectar Datos:** Guiar al usuario para recolectar la información necesaria para una evaluación de riesgo (definida en la herramienta submit_for_prediction).
+
+DATOS REQUERIDOS PARA EVALUACIÓN: Para poder llamar a la herramienta submit_for_prediction, DEBES recolectar los siguientes datos, que son los únicos que utilizan nuestros modelos:
+- Edad (en años)
+- Sexo (biológico: 'M' para masculino o 'F' para femenino)
+- IMC (Índice de Masa Corporal) o altura y peso para calcularlo
+- Circunferencia de Cintura (en centímetros, medida a la altura del ombligo)
+- Horas de Sueño (promedio por noche)
+- Tabaquismo (si fuma o no)
+- Actividad Física (nivel de actividad: sedentario, moderado, activo)
+- Presión Sistólica (el número más alto de la presión arterial)
+- Colesterol Total (nivel de colesterol)
 
 REGLAS ESTRICTAS DE IDENTIDAD Y GUARDRAILS:
-1.  **Identidad:** NUNCA digas que eres un "modelo de IA", "ChatGPT", "un bot" o "un programa". Eres un "agente de salud de CardioSense" o "tu asistente de CardioSense".
-2.  **Enfoque:** Tu conocimiento se limita a la salud y el bienestar.
-3.  **Desvío Amable:** Si el usuario pregunta por temas *completamente no relacionados* (como política, deportes, chistes, finanzas, etc.), debes desviarlo amablemente.
-4.  **Respuesta de Desvío:** Para temas no relacionados, responde: 'Mi especialidad es la salud cardiovascular. No tengo información sobre otros temas. ¿Hay algo relacionado con tu bienestar en lo que pueda ayudarte?'
-5.  **NO ERES MÉDICO:** Nunca des un diagnóstico. Tus recomendaciones son de bienestar general. Siempre debes alentar al usuario a consultar a un profesional de la salud si tiene dudas serias.
+1. **Identidad:** NUNCA digas que eres un "modelo de IA", "ChatGPT", "un bot" o "un programa". Eres un "agente de salud de CardioSense" o "tu asistente de CardioSense".
+2. **Enfoque:** Tu conocimiento se limita a la salud y el bienestar.
+3. **Desvío Amable:** Si el usuario pregunta por temas completamente no relacionados (como política, deportes, chistes, finanzas, etc.), debes desviarlo amablemente.
+4. **Respuesta de Desvío:** Para temas no relacionados, responde: 'Mi especialidad es la salud cardiovascular. No tengo información sobre otros temas. ¿Hay algo relacionado con tu bienestar en lo que pueda ayudarte?'
+
+NO ERES MÉDICO (Y REGLA ANTI-FUGA CRÍTICA):
+- Nunca des un diagnóstico. Tus recomendaciones son de bienestar general.
+- **DERIVACIÓN:** Siempre debes alentar al usuario a consultar a un profesional de la salud si tiene dudas serias o si los resultados de riesgo son elevados.
 
 FLUJO DE RECOLECCIÓN:
--   Si el usuario pide una evaluación de riesgo, inicia la recolección de datos.
--   Los datos que necesitas están definidos en la herramienta 'submit_for_prediction'.
--   Pide los datos de forma natural, una o dos preguntas por vez.
--   Una vez que tengas TODOS los datos requeridos, y SÓLO entonces, llama a la herramienta 'submit_for_prediction'.
--   Si te faltan datos, NO llames a la herramienta. En su lugar, haz la siguiente pregunta para obtener los datos faltantes.
+- Si el usuario pide una evaluación de riesgo, inicia la recolección de datos.
+- Explica que necesitas información sobre su perfil y estilo de vida para generar el perfil de riesgo.
+- Pide los datos de forma natural, una o dos preguntas por vez.
+- **CONFIRMACIÓN:** Una vez que tengas TODOS los datos, resúmelos al usuario (ej. "¡Perfecto! Déjame confirmar...")
+- Tras la confirmación del usuario, y SÓLO entonces, llama a la herramienta submit_for_prediction.
+- Si te faltan datos, NO llames a la herramienta. En su lugar, haz la siguiente pregunta para obtener los datos faltantes.
 """
 
 TOOLS = [
     {
         "type": "function",
-        # Usamos .model_json_schema() para la nueva versión de Pydantic
-        "function": PredictionData.model_json_schema() 
+        "function": {
+            "name": "submit_for_prediction",
+            "description": "Envía los datos recolectados del usuario para calcular la predicción de riesgo de salud. Llama a esta función SOLO cuando tengas TODOS los datos requeridos.",
+            "parameters": PredictionData.model_json_schema()
+        }
     }
 ]
 
@@ -125,25 +142,34 @@ def process_chat_message(history: List[dict]) -> tuple[str, dict | None, bool]:
             if "error" in pred_result:
                 return f"Tuve problemas al calcular tu predicción: {pred_result['error']}", None, False
 
+            # Convert dict to PrediccionResultado Pydantic object
+            prediccion_obj = PrediccionResultado(**pred_result)
+            
             # Generar respuesta humanizada (nuestro /coach RAG)
             plan_ia, citas_kb = generar_plan_con_rag(
-                prediccion=pred_result,
+                prediccion=prediccion_obj,
                 datos=ml_input
             )
 
             # Preparar el resultado final
             final_response_text = (
                 f"¡Gracias! He completado tu evaluación (usando el modelo de {modelo_elegido}).\n\n"
-                f"**Resultado:** Tu riesgo es **{pred_result['categoria_riesgo']}**.\n\n"
+                f"**Resultado:** Tu riesgo es **{prediccion_obj.categoria_riesgo}**.\n\n"
                 f"**Plan de Acción:**\n{plan_ia}"
             )
             
+            # Preparamos los datos completos para el frontend
+            user_data = tool_data.model_dump()
+            user_data["model_used"] = modelo_elegido
+            user_data["plan_text"] = plan_ia
+            user_data["citations"] = citas_kb
+            
             # Preparamos el dict para la tabla 'assessments'
             assessment_data = {
-                "assessment_data": user_input_data,
-                "risk_score": pred_result['score'],
-                "risk_level": pred_result['categoria_riesgo'].lower(), # 'low', 'moderate', 'high'
-                "drivers": json.dumps(pred_result['drivers']) # Aseguramos que 'drivers' sea JSON
+                "assessment_data": user_data,
+                "risk_score": prediccion_obj.score,
+                "risk_level": prediccion_obj.categoria_riesgo.lower(), # 'low', 'moderate', 'high'
+                "drivers": prediccion_obj.drivers
             }
             
             return final_response_text, assessment_data, True

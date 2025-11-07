@@ -27,7 +27,14 @@ def get_explainer(model_type: str = "diabetes"):
     if model_type not in _explainers:
         try:
             model, _, _ = load_model_bundle(model_type)
-            _explainers[model_type] = shap.TreeExplainer(model)
+            
+            # Extract base estimator from CalibratedClassifierCV if needed
+            base_model = model
+            if hasattr(model, 'calibrated_classifiers_') and len(model.calibrated_classifiers_) > 0:
+                base_model = model.calibrated_classifiers_[0].estimator
+                logger.info("Extracted base estimator from CalibratedClassifierCV for SHAP")
+            
+            _explainers[model_type] = shap.TreeExplainer(base_model)
             logger.info("SHAP explainer initialized for %s", model_type)
         except Exception as e:
             logger.warning("Failed to initialize SHAP explainer for %s: %s", model_type, e)
@@ -116,9 +123,17 @@ def predict_risk(
                 raise RuntimeError("Imputer is required for diabetes model but was not loaded.")
 
             X_imp = imputer.transform(X)
-            features_df = pd.DataFrame(X_imp, columns=feature_names)
+            
+            # Get valid feature names after imputation (imputer drops features with no valid data)
+            if hasattr(imputer, 'statistics_'):
+                valid_mask = ~np.isnan(imputer.statistics_)
+                valid_feature_names = [name for name, valid in zip(feature_names, valid_mask) if valid]
+            else:
+                valid_feature_names = feature_names
+            
+            features_df = pd.DataFrame(X_imp, columns=valid_feature_names)
             risk_score = float(model.predict_proba(X_imp)[0, 1])
-            drivers = _get_diabetes_drivers(model, features_df, feature_names)
+            drivers = _get_diabetes_drivers(model, features_df, valid_feature_names)
 
         risk_level, recommendation = _interpret_risk(risk_score)
 

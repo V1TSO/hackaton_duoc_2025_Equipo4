@@ -1,9 +1,11 @@
 import Link from "next/link";
-import ReactMarkdown from "react-markdown";
 import { requireUser } from "@/lib/auth-helpers";
 import { createClient } from "@/lib/supabase/server";
-import { formatDate, getRiskLabel, getRiskDescription } from "@/lib/utils";
+import { formatDate, getRiskLabel, getRiskDescription, getImpactLevel, getImpactColor } from "@/lib/utils";
 import type { RiskLevel } from "@/lib/utils";
+import { MarkdownRenderer } from "@/components/MarkdownRenderer";
+import { CoachChatSection } from "./CoachChatSection";
+import { DeletePlanSection } from "./DeletePlanSection";
 import {
   Activity,
   ClipboardList,
@@ -15,9 +17,9 @@ import {
 export const runtime = "edge";
 
 interface CoachPageProps {
-  searchParams?: {
+  searchParams: Promise<{
     assessment?: string;
-  };
+  }>;
 }
 
 export default async function CoachPage({ searchParams }: CoachPageProps) {
@@ -71,12 +73,11 @@ export default async function CoachPage({ searchParams }: CoachPageProps) {
   }
 
   const riskLevel = (assessment.risk_level ?? "low") as RiskLevel;
-  const riskScore = assessment.risk_score ?? 0;
   const rawAssessmentData = (assessment.assessment_data ?? {}) as Record<string, unknown>;
   
   // Extract profile data - assessment_data is now properly structured
   const profile = rawAssessmentData;
-  const modelUsed = (rawAssessmentData.model_used ?? rawAssessmentData.modelo ?? "diabetes") as string;
+  const modelUsed = ((rawAssessmentData.model_used ?? rawAssessmentData.modelo ?? "diabetes") as string);
 
   // Drivers come from either the new structure or the old flat structure
   const drivers = Array.isArray(assessment.drivers) 
@@ -120,16 +121,6 @@ export default async function CoachPage({ searchParams }: CoachPageProps) {
     return String(smoking);
   };
 
-  const profileHighlights = [
-    { label: "Altura", value: profile.altura_cm ? `${Number(profile.altura_cm).toFixed(0)} cm` : "—" },
-    { label: "Peso", value: profile.peso_kg ? `${Number(profile.peso_kg).toFixed(1)} kg` : "—" },
-    { label: "Circunferencia de cintura", value: profile.circunferencia_cintura ? `${Number(profile.circunferencia_cintura).toFixed(0)} cm` : "—" },
-    { label: "IMC", value: profile.imc ? `${Number(profile.imc).toFixed(1)} (${Number(profile.imc) >= 30 ? "Obesidad" : Number(profile.imc) >= 25 ? "Sobrepeso" : "Normal"})` : "—" },
-    { label: "Horas de sueño", value: profile.horas_sueno ? `${Number(profile.horas_sueno).toFixed(1)} horas/día` : "—" },
-    { label: "Tabaquismo", value: formatSmoking(profile.tabaquismo) },
-    { label: "Actividad física", value: formatActivityLevel(profile.actividad_fisica) },
-  ];
-
   return (
     <div className="bg-linear-to-br from-blue-50 via-white to-indigo-50 min-h-screen">
       <header className="bg-linear-to-r from-blue-600 via-indigo-600 to-purple-600 text-white shadow-lg">
@@ -159,7 +150,6 @@ export default async function CoachPage({ searchParams }: CoachPageProps) {
               </span>
               <span className={`inline-flex items-center gap-2 px-3 py-1 rounded-full border ${riskPillClasses}`}>
                 <span className="font-semibold">{getRiskLabel(riskLevel)}</span>
-                <span className="text-sm">{Math.round(riskScore * 100)}%</span>
               </span>
             </div>
           </div>
@@ -176,19 +166,19 @@ export default async function CoachPage({ searchParams }: CoachPageProps) {
               <div className="space-y-3">
                 <div className="flex justify-between items-center py-2 border-b border-gray-100">
                   <span className="text-sm text-gray-600">Altura</span>
-                  <span className="text-sm font-medium text-gray-900">{profile.altura_cm ? `${Number(profile.altura_cm).toFixed(0)} cm` : "undefined cm"}</span>
+                  <span className="text-sm font-medium text-gray-900">{profile.altura_cm ? `${Number(profile.altura_cm).toFixed(0)} cm` : "—"}</span>
                 </div>
                 <div className="flex justify-between items-center py-2 border-b border-gray-100">
                   <span className="text-sm text-gray-600">Peso</span>
-                  <span className="text-sm font-medium text-gray-900">{profile.peso_kg ? `${Number(profile.peso_kg).toFixed(1)} kg` : "undefined kg"}</span>
+                  <span className="text-sm font-medium text-gray-900">{profile.peso_kg ? `${Number(profile.peso_kg).toFixed(1)} kg` : "—"}</span>
                 </div>
                 <div className="flex justify-between items-center py-2 border-b border-gray-100">
                   <span className="text-sm text-gray-600">Circunferencia de cintura</span>
-                  <span className="text-sm font-medium text-gray-900">{profile.circunferencia_cintura ? `${Number(profile.circunferencia_cintura).toFixed(0)} cm` : "undefined cm"}</span>
+                  <span className="text-sm font-medium text-gray-900">{profile.circunferencia_cintura ? `${Number(profile.circunferencia_cintura).toFixed(0)} cm` : "—"}</span>
                 </div>
                 <div className="flex justify-between items-center py-2 border-b border-gray-100">
                   <span className="text-sm text-gray-600">IMC</span>
-                  <span className="text-sm font-medium text-gray-900">{profile.imc ? `${Number(profile.imc).toFixed(1)} (${Number(profile.imc) >= 30 ? "Obesidad" : Number(profile.imc) >= 25 ? "Sobrepeso" : "Normal"})` : "NaN (Obesidad)"}</span>
+                  <span className="text-sm font-medium text-gray-900">{profile.imc ? `${Number(profile.imc).toFixed(1)} (${Number(profile.imc) >= 30 ? "Obesidad" : Number(profile.imc) >= 25 ? "Sobrepeso" : "Normal"})` : "—"}</span>
                 </div>
               </div>
             </div>
@@ -198,19 +188,19 @@ export default async function CoachPage({ searchParams }: CoachPageProps) {
               <div className="space-y-3">
                 <div className="flex justify-between items-center py-2 border-b border-gray-100">
                   <span className="text-sm text-gray-600">Horas de sueño</span>
-                  <span className="text-sm font-medium text-gray-900">{profile.horas_sueno ? `${Number(profile.horas_sueno).toFixed(1)} horas/día` : "undefined horas/día"}</span>
+                  <span className="text-sm font-medium text-gray-900">{profile.horas_sueno ? `${Number(profile.horas_sueno).toFixed(1)} horas/día` : "—"}</span>
                 </div>
                 <div className="flex justify-between items-center py-2 border-b border-gray-100">
                   <span className="text-sm text-gray-600">Tabaquismo</span>
-                  <span className="text-sm font-medium text-gray-900">{formatSmoking(profile.tabaquismo) || "undefined cigarrillos/día"}</span>
+                  <span className="text-sm font-medium text-gray-900">{formatSmoking(profile.tabaquismo) || "—"}</span>
                 </div>
                 <div className="flex justify-between items-center py-2 border-b border-gray-100">
                   <span className="text-sm text-gray-600">Actividad física</span>
-                  <span className="text-sm font-medium text-gray-900">{formatActivityLevel(profile.actividad_fisica) || "undefined días/semana"}</span>
+                  <span className="text-sm font-medium text-gray-900">{formatActivityLevel(profile.actividad_fisica) || "—"}</span>
                 </div>
                 <div className="flex justify-between items-center py-2 border-b border-gray-100">
                   <span className="text-sm text-gray-600">Frutas y verduras</span>
-                  <span className="text-sm font-medium text-gray-900">undefined porciones/día</span>
+                  <span className="text-sm font-medium text-gray-900">—</span>
                 </div>
               </div>
             </div>
@@ -228,7 +218,7 @@ export default async function CoachPage({ searchParams }: CoachPageProps) {
                 </p>
                 <div className="flex items-center gap-4">
                   <span className={`inline-flex items-center gap-2 px-4 py-2 rounded-full border font-semibold ${riskPillClasses}`}>
-                    {getRiskLabel(riskLevel)} • {Math.round(riskScore * 100)}%
+                    {getRiskLabel(riskLevel)}
                   </span>
                   <span className="text-sm text-gray-600">
                     Modelo: {modelUsed === "cardiovascular" ? "Cardiovascular" : "Diabetes"}
@@ -256,18 +246,18 @@ export default async function CoachPage({ searchParams }: CoachPageProps) {
             </div>
             
             <div className="space-y-4">
-              {drivers.slice(0, 5).map((driver: any, index: number) => {
+              {drivers.slice(0, 5).map((driver: string | Record<string, unknown>, index: number) => {
                 const isString = typeof driver === "string";
-                const feature = isString ? driver : (driver.feature || "");
-                const description = isString ? driver : (driver.description || feature);
-                const value = isString ? null : driver.value;
-                const shapValue = isString ? null : driver.shap_value;
-                const impact = isString ? null : (driver.impact || (shapValue && shapValue > 0 ? "aumenta" : "reduce"));
+                const driverObj = isString ? null : driver as Record<string, unknown>;
+                const feature = isString ? driver : String(driverObj?.feature || "");
+                const description = isString ? driver : String(driverObj?.description || feature || "Factor desconocido");
+                const rawShapValue = isString ? null : (driverObj?.shap_value ?? driverObj?.contribution);
+                const shapValue = typeof rawShapValue === "number" ? rawShapValue : null;
+                const impact = isString ? null : (driverObj?.impact || (shapValue && shapValue > 0 ? "aumenta" : "reduce"));
                 
-                // Calculate percentage if we have shap_value
-                const percentage = shapValue !== null && shapValue !== undefined 
-                  ? Math.abs(shapValue * 100).toFixed(1)
-                  : null;
+                // Get impact level using our utility function
+                const impactLevel = getImpactLevel(shapValue);
+                const impactColor = getImpactColor(impactLevel);
                 
                 return (
                   <div key={`${feature}-${index}`} className="bg-linear-to-r from-red-50 to-pink-50 border-l-4 border-red-400 rounded-lg p-5">
@@ -286,31 +276,18 @@ export default async function CoachPage({ searchParams }: CoachPageProps) {
                           )}
                         </div>
                         
-                        {value !== null && value !== undefined && (
-                          <p className="text-sm text-gray-700 mb-1">
-                            <span className="font-medium">Valor actual:</span> {
-                              typeof value === "number" ? value.toFixed(2) : value
-                            }
-                          </p>
-                        )}
-                        
                         <p className="text-xs text-gray-600">
                           {impact === "aumenta" 
-                            ? "Este factor contribuye positivamente a tu riesgo. Mejorar este indicador puede reducir tu riesgo." 
+                            ? "Este factor contribuye a tu riesgo. Mejorar este indicador puede ayudarte." 
                             : "Este factor está reduciendo tu riesgo. Mantén este buen indicador."}
                         </p>
                       </div>
                       
-                      {percentage && (
-                        <div className="shrink-0 text-right">
-                          <div className={`text-2xl font-bold ${
-                            impact === "aumenta" ? "text-red-600" : "text-green-600"
-                          }`}>
-                            {impact === "aumenta" ? "↑" : "↓"} {percentage}%
-                          </div>
-                          <div className="text-xs text-gray-500 mt-1">Contribución</div>
-                        </div>
-                      )}
+                      <div className="shrink-0 text-right">
+                        <span className={`px-3 py-1 rounded-full text-sm font-medium border ${impactColor}`}>
+                          Impacto {impactLevel}
+                        </span>
+                      </div>
                     </div>
                   </div>
                 );
@@ -334,9 +311,7 @@ export default async function CoachPage({ searchParams }: CoachPageProps) {
             </div>
           </div>
 
-          <div className="prose prose-sm max-w-none text-gray-800">
-            <ReactMarkdown>{planText}</ReactMarkdown>
-          </div>
+          <MarkdownRenderer content={planText} />
 
           {citations.length > 0 && (
             <div className="mt-6 border-t border-gray-200 pt-4">
@@ -352,6 +327,10 @@ export default async function CoachPage({ searchParams }: CoachPageProps) {
             </div>
           )}
         </section>
+
+        <CoachChatSection assessmentId={assessment.id} />
+
+        <DeletePlanSection assessmentId={assessment.id} />
 
         <section className="bg-linear-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-3xl shadow-sm p-8">
           <div className="text-center">

@@ -11,6 +11,8 @@ import {
   shouldRecommendDoctor,
   formatBMI,
   getBMICategory,
+  getImpactLevel,
+  getImpactColor,
 } from "@/lib/utils";
 import { AlertTriangle, TrendingUp, ArrowRight, MessageSquare, Calendar } from "lucide-react";
 import Link from "next/link";
@@ -41,29 +43,29 @@ export default async function ResultsPage({
   }
 
   const riskDescription = getRiskDescription(assessment.risk_level);
-  const needsDoctor = shouldRecommendDoctor(assessment.risk_score);
-  const assessmentData = assessment.assessment_data as {
-    age: number;
-    sex: string;
-    height_cm: number;
-    weight_kg: number;
-    waist_cm: number;
-    sleep_hours: number;
-    smokes_cig_day: number;
-    days_mvpa_week: number;
-    fruit_veg_portions_day: number;
+  const needsDoctor = shouldRecommendDoctor(assessment.risk_score ?? 0);
+  const assessmentData = (assessment.assessment_data ?? {}) as {
+    age?: number;
+    sex?: string;
+    height_cm?: number;
+    weight_kg?: number;
+    waist_cm?: number;
+    sleep_hours?: number;
+    smokes_cig_day?: number;
+    days_mvpa_week?: number;
+    fruit_veg_portions_day?: number;
   };
-  const drivers = assessment.drivers as Array<{
+  const drivers = (assessment.drivers ?? []) as Array<{
     feature: string;
-    value: number;
-    contribution: number;
-    description: string;
+    value?: number;
+    contribution?: number;
+    description?: string;
   }>;
 
-  const bmi = formatBMI(assessmentData.weight_kg, assessmentData.height_cm);
+  const bmi = formatBMI(assessmentData.weight_kg ?? 0, assessmentData.height_cm ?? 0);
   const bmiCategory = getBMICategory(
-    assessmentData.weight_kg,
-    assessmentData.height_cm
+    assessmentData.weight_kg ?? 0,
+    assessmentData.height_cm ?? 0
   );
 
   return (
@@ -143,34 +145,31 @@ export default async function ResultsPage({
 
         <div className="space-y-4">
           {drivers.slice(0, 5).map((driver, index) => {
-            const contributionPercent = Math.abs(driver.contribution * 100);
-            const isNegative = driver.contribution < 0;
+            const contribution = driver.contribution ?? 0;
+            const isNegative = contribution < 0;
+            const impactLevel = getImpactLevel(Math.abs(contribution));
+            const impactColor = getImpactColor(impactLevel);
 
             return (
-              <div key={index} className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <h3 className="font-medium text-gray-900">
-                    {driver.description || driver.feature}
+              <div key={index} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-200">
+                <div className="flex-1">
+                  <h3 className="font-medium text-gray-900 mb-1">
+                    {driver.description || driver.feature || "Factor desconocido"}
                   </h3>
-                  <span
-                    className={`text-sm font-medium ${
-                      isNegative ? "text-green-600" : "text-red-600"
-                    }`}
-                  >
-                    {isNegative ? "↓" : "↑"} {contributionPercent.toFixed(1)}%
+                  <p className="text-sm text-gray-600">
+                    {isNegative 
+                      ? "Este factor está ayudando a reducir tu riesgo" 
+                      : "Este factor está aumentando tu riesgo"}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 ml-4">
+                  <span className={`text-lg ${isNegative ? "text-green-600" : "text-red-600"}`}>
+                    {isNegative ? "↓" : "↑"}
+                  </span>
+                  <span className={`px-3 py-1 rounded-full text-sm font-medium border ${impactColor}`}>
+                    Impacto {impactLevel}
                   </span>
                 </div>
-                <div className="w-full bg-gray-200 rounded-full h-2.5">
-                  <div
-                    className={`h-2.5 rounded-full ${
-                      isNegative ? "bg-green-500" : "bg-red-500"
-                    }`}
-                    style={{ width: `${Math.min(contributionPercent, 100)}%` }}
-                  />
-                </div>
-                <p className="text-sm text-gray-600">
-                  Valor actual: {driver.value}
-                </p>
               </div>
             );
           })}
@@ -190,14 +189,17 @@ export default async function ResultsPage({
             <div className="space-y-3">
               <InfoRow
                 label="Altura"
-                value={`${assessmentData.height_cm} cm`}
+                value={assessmentData.height_cm ? `${assessmentData.height_cm} cm` : "—"}
               />
-              <InfoRow label="Peso" value={`${assessmentData.weight_kg} kg`} />
+              <InfoRow 
+                label="Peso" 
+                value={assessmentData.weight_kg ? `${assessmentData.weight_kg} kg` : "—"} 
+              />
               <InfoRow
                 label="Circunferencia de cintura"
-                value={`${assessmentData.waist_cm} cm`}
+                value={assessmentData.waist_cm ? `${assessmentData.waist_cm} cm` : "—"}
               />
-              <InfoRow label="IMC" value={`${bmi} (${bmiCategory})`} />
+              <InfoRow label="IMC" value={bmi !== "—" ? `${bmi} (${bmiCategory})` : "—"} />
             </div>
           </div>
 
@@ -208,23 +210,25 @@ export default async function ResultsPage({
             <div className="space-y-3">
               <InfoRow
                 label="Horas de sueño"
-                value={`${assessmentData.sleep_hours} horas/día`}
+                value={assessmentData.sleep_hours ? `${assessmentData.sleep_hours} horas/día` : "—"}
               />
               <InfoRow
                 label="Tabaquismo"
                 value={
-                  assessmentData.smokes_cig_day === 0
-                    ? "No fuma"
-                    : `${assessmentData.smokes_cig_day} cigarrillos/día`
+                  assessmentData.smokes_cig_day !== undefined && assessmentData.smokes_cig_day !== null
+                    ? assessmentData.smokes_cig_day === 0
+                      ? "No fuma"
+                      : `${assessmentData.smokes_cig_day} cigarrillos/día`
+                    : "—"
                 }
               />
               <InfoRow
                 label="Actividad física"
-                value={`${assessmentData.days_mvpa_week} días/semana`}
+                value={assessmentData.days_mvpa_week !== undefined && assessmentData.days_mvpa_week !== null ? `${assessmentData.days_mvpa_week} días/semana` : "—"}
               />
               <InfoRow
                 label="Frutas y verduras"
-                value={`${assessmentData.fruit_veg_portions_day} porciones/día`}
+                value={assessmentData.fruit_veg_portions_day !== undefined && assessmentData.fruit_veg_portions_day !== null ? `${assessmentData.fruit_veg_portions_day} porciones/día` : "—"}
               />
             </div>
           </div>

@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/client";
 import type { MessageResponse } from "@/lib/types";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "https://v1tso-cardiosense.hf.space";
 const API_AVAILABLE = process.env.NEXT_PUBLIC_API_AVAILABLE !== "false";
 
 export class APIError extends Error {
@@ -104,7 +104,13 @@ export const healthAPI = {
       body: JSON.stringify(requestBody),
     });
 
-    const result = await response.json();
+    const result = await response.json() as {
+      response: { content: string };
+      session_id: string;
+      prediction_made: boolean;
+      model_used?: string;
+      assessment_id?: string;
+    };
     
     // Transform backend response to frontend format
     return {
@@ -114,6 +120,55 @@ export const healthAPI = {
       action: result.prediction_made ? "redirect_results" : "continue",
       session_id: result.session_id,
       prediction_made: result.prediction_made,
+      model_used: result.model_used ?? undefined,
+      assessment_id: result.assessment_id ?? undefined,
+    };
+  },
+
+  async coachMessage(
+    content: string,
+    assessmentId: string
+  ): Promise<MessageResponse> {
+    if (!API_AVAILABLE) {
+      return {
+        reply:
+          "El servicio de coach no está disponible porque el backend no está conectado.",
+        extracted_data: {},
+        is_ready: false,
+        action: "continue",
+        session_id: assessmentId,
+        prediction_made: false,
+        model_used: undefined,
+        assessment_id: assessmentId,
+      };
+    }
+
+    const requestBody = {
+      content,
+      session_id: assessmentId,
+    };
+
+    const response = await fetchWithAuth("/api/chat/coach/message", {
+      method: "POST",
+      body: JSON.stringify(requestBody),
+    });
+
+    const result = await response.json() as {
+      response: { content: string };
+      session_id: string;
+      prediction_made: boolean;
+      model_used?: string;
+      assessment_id?: string;
+    };
+    
+    // Transform backend response to frontend format
+    return {
+      reply: result.response.content,
+      extracted_data: {},
+      is_ready: false,
+      action: "continue",
+      session_id: result.session_id,
+      prediction_made: false,
       model_used: result.model_used ?? undefined,
       assessment_id: result.assessment_id ?? undefined,
     };

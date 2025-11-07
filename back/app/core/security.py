@@ -7,6 +7,12 @@ async def verify_supabase_token(authorization: str = Header(None)):
     Verifica el JWT emitido por Supabase.
     Si es válido, retorna el objeto de usuario con el token.
     """
+    if not settings.SUPABASE_URL or not settings.SUPABASE_ANON_KEY:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Supabase no está configurado"
+        )
+    
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

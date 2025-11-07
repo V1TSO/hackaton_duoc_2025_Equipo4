@@ -7,12 +7,21 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-client = OpenAI(api_key=settings.OPENAI_API_KEY)
+# Initialize OpenAI client only if API key is available
+client = None
+if settings.OPENAI_API_KEY:
+    client = OpenAI(api_key=settings.OPENAI_API_KEY)
+else:
+    logger.warning("OpenAI API key not configured. Chat features will be disabled.")
 
 def generar_plan_con_rag(
     prediccion: PrediccionResultado, 
     datos: AnalisisEntrada
 ) -> tuple[str, list[str]]:
+    
+    if client is None:
+        logger.error("OpenAI client not initialized. Cannot generate plan.")
+        return "Servicio de recomendaciones no disponible. Configure OPENAI_API_KEY para habilitar esta función.", []
     
     logger.info(f"Generando plan RAG (JSON-Input) para riesgo: {prediccion.categoria_riesgo}")
     

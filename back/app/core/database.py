@@ -18,6 +18,9 @@ def get_supabase(access_token: Optional[str] = None) -> Client:
     url = settings.SUPABASE_URL
     key = settings.SUPABASE_ANON_KEY
     
+    if not url or not key:
+        raise RuntimeError("Supabase no está configurado. Configure SUPABASE_URL y SUPABASE_ANON_KEY")
+    
     if access_token:
         # Create a client with the user's JWT token for RLS
         client = create_client(url, key)

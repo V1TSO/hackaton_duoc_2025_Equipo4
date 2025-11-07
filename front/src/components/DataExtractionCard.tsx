@@ -44,7 +44,7 @@ export function DataExtractionCard({ extractedData }: DataExtractionCardProps) {
     return acc;
   }, {} as Record<string, FieldInfo[]>);
 
-  const formatValue = (field: FieldInfo, value: any) => {
+  const formatValue = (field: FieldInfo, value: unknown) => {
     if (field.key === "sex") {
       return value === "M" ? "Masculino" : "Femenino";
     }
