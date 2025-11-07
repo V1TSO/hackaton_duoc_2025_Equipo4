@@ -28,7 +28,7 @@ function SubmitButton() {
 }
 
 export default function RegisterPage() {
-  const [state, formAction] = useActionState(signUpAction, { error: undefined });
+  const [state, formAction] = useActionState(signUpAction, { error: "" });
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-red-50 to-pink-50">
