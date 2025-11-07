@@ -1,9 +1,25 @@
+// src/app/(public)/register/page.tsx
+
 "use client";
 
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { Heart, Shield, ArrowLeft, Mail, Lock, User, Calendar } from "lucide-react";
+import {
+  Heart,
+  Shield,
+  ArrowLeft,
+  Mail,
+  Lock,
+  User,
+  Calendar,
+} from "lucide-react";
 import Link from "next/link";
+
+// 1. Definir la forma de la respuesta de la API de registro
+interface RegisterResponse {
+  success: boolean;
+  message?: string;
+}
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -25,33 +41,52 @@ export default function RegisterPage() {
     const age = formData.get("age") as string;
 
     try {
-      // Validaciones básicas
+      // Validaciones básicas del cliente
       if (password !== confirmPassword) {
         throw new Error("Las contraseñas no coinciden");
       }
-
       if (password.length < 6) {
         throw new Error("La contraseña debe tener al menos 6 caracteres");
       }
-
       if (!firstName || !lastName) {
         throw new Error("Nombre y apellido son requeridos");
       }
-
       if (!age || parseInt(age) < 18 || parseInt(age) > 120) {
         throw new Error("Edad debe estar entre 18 y 120 años");
       }
 
-      // Simular creación de cuenta
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      setSuccess(true);
-      
-      // Redirigir al login después de 2 segundos
-      setTimeout(() => {
-        router.push("/login?message=Cuenta creada exitosamente");
-      }, 2000);
+      // Llamar a nuestra API de registro
+      const response = await fetch("/api/auth/register", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          email,
+          password,
+          firstName,
+          lastName,
+          age: parseInt(age),
+        }),
+      });
 
+      // 2. Aplicar el "type casting" a la respuesta JSON
+      const result = (await response.json()) as RegisterResponse;
+
+      // 3. Ahora 'result.success' y 'result.message' son reconocidos
+      if (!response.ok || !result.success) {
+        throw new Error(result.message || "Error al crear la cuenta");
+      }
+
+      setSuccess(true);
+
+      // Redirigir al login después de 3 segundos
+      setTimeout(() => {
+        // Enviar un mensaje de éxito a la página de login
+        router.push(
+          "/login?message=Cuenta creada. Revisa tu email para confirmar.",
+        );
+      }, 3000);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error inesperado");
     } finally {
@@ -67,10 +102,12 @@ export default function RegisterPage() {
             <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
               <Heart className="h-8 w-8 text-green-600" />
             </div>
-            <h2 className="text-2xl font-bold text-gray-900 mb-4">¡Cuenta Creada!</h2>
+            <h2 className="text-2xl font-bold text-gray-900 mb-4">
+              ¡Cuenta Creada!
+            </h2>
             <p className="text-gray-600 mb-6">
-              Tu cuenta en CardioSense ha sido creada exitosamente. 
-              Te estamos redirigiendo al login...
+              Tu cuenta ha sido creada. Revisa tu email para confirmar y poder
+              iniciar sesión. Te estamos redirigiendo...
             </p>
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600 mx-auto"></div>
           </div>
@@ -84,8 +121,8 @@ export default function RegisterPage() {
       <div className="flex min-h-screen items-center justify-center px-6 py-12">
         <div className="w-full max-w-md">
           {/* Botón de regreso */}
-          <Link 
-            href="/" 
+          <Link
+            href="/"
             className="inline-flex items-center text-sm text-gray-600 hover:text-red-600 mb-8 transition-colors"
           >
             <ArrowLeft className="h-4 w-4 mr-2" />
@@ -113,7 +150,10 @@ export default function RegisterPage() {
               {/* Nombre y Apellido */}
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-gray-700" htmlFor="firstName">
+                  <label
+                    className="text-sm font-medium text-gray-700"
+                    htmlFor="firstName"
+                  >
                     Nombre
                   </label>
                   <div className="relative">
@@ -130,7 +170,10 @@ export default function RegisterPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-gray-700" htmlFor="lastName">
+                  <label
+                    className="text-sm font-medium text-gray-700"
+                    htmlFor="lastName"
+                  >
                     Apellido
                   </label>
                   <div className="relative">
@@ -149,7 +192,10 @@ export default function RegisterPage() {
 
               {/* Email */}
               <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-700" htmlFor="email">
+                <label
+                  className="text-sm font-medium text-gray-700"
+                  htmlFor="email"
+                >
                   Correo electrónico
                 </label>
                 <div className="relative">
@@ -168,7 +214,10 @@ export default function RegisterPage() {
 
               {/* Edad */}
               <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-700" htmlFor="age">
+                <label
+                  className="text-sm font-medium text-gray-700"
+                  htmlFor="age"
+                >
                   Edad
                 </label>
                 <div className="relative">
@@ -184,12 +233,17 @@ export default function RegisterPage() {
                     placeholder="25"
                   />
                 </div>
-                <p className="text-xs text-gray-500">Necesaria para evaluaciones precisas</p>
+                <p className="text-xs text-gray-500">
+                  Necesaria para evaluaciones precisas
+                </p>
               </div>
 
               {/* Contraseña */}
               <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-700" htmlFor="password">
+                <label
+                  className="text-sm font-medium text-gray-700"
+                  htmlFor="password"
+                >
                   Contraseña
                 </label>
                 <div className="relative">
@@ -209,7 +263,10 @@ export default function RegisterPage() {
 
               {/* Confirmar Contraseña */}
               <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-700" htmlFor="confirmPassword">
+                <label
+                  className="text-sm font-medium text-gray-700"
+                  htmlFor="confirmPassword"
+                >
                   Confirmar contraseña
                 </label>
                 <div className="relative">
@@ -236,14 +293,30 @@ export default function RegisterPage() {
                   className="mt-1 h-4 w-4 text-red-600 focus:ring-red-500 border-gray-300 rounded"
                 />
                 <label htmlFor="terms" className="text-xs text-gray-600">
-                  Acepto los <Link href="/terms" className="text-red-600 hover:underline">términos y condiciones</Link> y 
-                  la <Link href="/privacy" className="text-red-600 hover:underline">política de privacidad</Link> de CardioSense
+                  Acepto los{" "}
+                  <Link
+                    href="/terms"
+                    className="text-red-600 hover:underline"
+                  >
+                    términos y condiciones
+                  </Link>{" "}
+                  y la{" "}
+                  <Link
+                    href="/privacy"
+                    className="text-red-600 hover:underline"
+                  >
+                    política de privacidad
+                  </Link>{" "}
+                  de CardioSense
                 </label>
               </div>
 
               {error ? (
                 <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-                  <p className="text-sm text-red-600 text-center" role="alert">
+                  <p
+                    className="text-sm text-red-600 text-center"
+                    role="alert"
+                  >
                     {error}
                   </p>
                 </div>
@@ -269,14 +342,17 @@ export default function RegisterPage() {
             <div className="mt-6 text-center space-y-4">
               <p className="text-sm text-gray-600">
                 ¿Ya tienes cuenta?{" "}
-                <Link href="/login" className="text-red-600 hover:text-red-700 font-medium">
+                <Link
+                  href="/login"
+                  className="text-red-600 hover:text-red-700 font-medium"
+                >
                   Inicia sesión aquí
                 </Link>
               </p>
-              
+
               <div className="pt-4 border-t border-gray-200">
-                <Link 
-                  href="/" 
+                <Link
+                  href="/"
                   className="text-xs text-gray-500 hover:text-gray-700"
                 >
                   ← Volver a la página principal
@@ -291,9 +367,10 @@ export default function RegisterPage() {
               <Shield className="h-4 w-4 text-yellow-600 mt-0.5 flex-shrink-0" />
               <div>
                 <p className="text-xs text-yellow-800">
-                  <strong>Privacidad:</strong> Tus datos están protegidos y solo se usan para 
-                  generar evaluaciones personalizadas. CardioSense no comparte información personal 
-                  y cumple con estándares de privacidad de datos de salud.
+                  <strong>Privacidad:</strong> Tus datos están protegidos y solo
+                  se usan para generar evaluaciones personalizadas. CardioSense
+                  no comparte información personal y cumple con estándares de
+                  privacidad de datos de salud.
                 </p>
               </div>
             </div>

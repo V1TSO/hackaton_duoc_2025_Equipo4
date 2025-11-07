@@ -1,3 +1,5 @@
+// src/middleware.ts
+
 import { NextResponse, type NextRequest } from "next/server";
 
 export function middleware(request: NextRequest) {
@@ -12,7 +14,7 @@ export function middleware(request: NextRequest) {
   // Verificar tokens de autenticación en cookies
   const authTokens = [
     "sb-access-token",
-    "supabase-auth-token",
+    "supabase-auth-token", // Nombre de cookie legacy
     "sb-refresh-token",
   ];
 
@@ -53,4 +55,3 @@ export const config = {
     "/((?!api|_next/static|_next/image|favicon.ico|.*\\.).*)",
   ],
 };
-

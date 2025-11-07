@@ -1,154 +1,44 @@
-import { supabase } from './supabase'
+// src/lib/auth.ts
 
-
-interface AuthUser {
-  id: string
-  email: string
-  firstName?: string
-  lastName?: string
-  age?: number
-  role: 'admin' | 'user'
+// 1. Definir la forma de la respuesta de la API de login
+interface LoginResponse {
+  success: boolean;
+  message?: string;
+  role?: string;
 }
 
-export class SupabaseAuth {
-  private currentUser: AuthUser | null = null
+/**
+ * Funciones de autenticación para el lado del CLIENTE (Client Components).
+ * Estas funciones envuelven las llamadas a las API Routes.
+ */
+export const auth = {
+  /**
+   * Llama a la API de login.
+   */
+  login: async (email: string, password: string) => {
+    const response = await fetch("/api/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password }),
+    });
 
-  async register(userData: {
-    email: string
-    password: string
-    firstName: string
-    lastName: string
-    age: number
-  }) {
-    try {
-      const { data, error } = await supabase.auth.signUp({
-        email: userData.email,
-        password: userData.password,
-        options: {
-          data: {
-            first_name: userData.firstName,
-            last_name: userData.lastName,
-            age: userData.age,
-          }
-        }
-      })
+    // 2. Aplicar el "type casting" a la respuesta JSON
+    const data = (await response.json()) as LoginResponse;
 
-      if (error) throw error
-
-      return {
-        success: true,
-        user: data.user,
-        message: 'Registro exitoso. Revisa tu email para confirmar tu cuenta.'
-      }
-    } catch (error: any) {
-      console.error('Registration error:', error)
-      return {
-        success: false,
-        error: error.message || 'Error al crear la cuenta'
-      }
+    if (!response.ok) {
+      // 3. Ahora 'data.message' es reconocido por TypeScript
+      return { success: false, error: data.message || "Error al iniciar sesión" };
     }
-  }
 
-  async login(email: string, password: string) {
-    try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      })
+    // 4. Ahora 'data.role' es reconocido por TypeScript
+    return { success: true, user: { role: data.role || "user" } };
+  },
 
-      if (error) throw error
-
-      if (data.user && data.session) {
-        this.currentUser = {
-          id: data.user.id,
-          email: data.user.email!,
-          firstName: data.user.user_metadata?.first_name,
-          lastName: data.user.user_metadata?.last_name,
-          age: data.user.user_metadata?.age,
-          role: email.includes('admin') ? 'admin' : 'user'
-        }
-
-        return {
-          success: true,
-          user: this.currentUser,
-          session: data.session
-        }
-      }
-
-      throw new Error('No se pudo iniciar sesión')
-    } catch (error: any) {
-      console.error('Login error:', error)
-      return {
-        success: false,
-        error: error.message || 'Credenciales inválidas'
-      }
-    }
-  }
-
-  async logout() {
-    try {
-      const { error } = await supabase.auth.signOut()
-      if (error) throw error
-
-      this.currentUser = null
-      return { success: true }
-    } catch (error: any) {
-      console.error('Logout error:', error)
-      return {
-        success: false,
-        error: error.message || 'Error al cerrar sesión'
-      }
-    }
-  }
-
-  async getCurrentUser(): Promise<AuthUser | null> {
-    try {
-      const { data: { user }, error } = await supabase.auth.getUser()
-      
-      if (error || !user) {
-        this.currentUser = null
-        return null
-      }
-
-      this.currentUser = {
-        id: user.id,
-        email: user.email!,
-        firstName: user.user_metadata?.first_name,
-        lastName: user.user_metadata?.last_name,
-        age: user.user_metadata?.age,
-        role: user.email?.includes('admin') ? 'admin' : 'user'
-      }
-
-      return this.currentUser
-    } catch (error) {
-      console.error('Get current user error:', error)
-      this.currentUser = null
-      return null
-    }
-  }
-
-  isAuthenticated(): boolean {
-    return this.currentUser !== null
-  }
-
-  onAuthStateChange(callback: (user: AuthUser | null) => void) {
-    return supabase.auth.onAuthStateChange(async (event, session) => {
-      if (session?.user) {
-        this.currentUser = {
-          id: session.user.id,
-          email: session.user.email!,
-          firstName: session.user.user_metadata?.first_name,
-          lastName: session.user.user_metadata?.last_name,
-          age: session.user.user_metadata?.age,
-          role: session.user.email?.includes('admin') ? 'admin' : 'user'
-        }
-        callback(this.currentUser)
-      } else {
-        this.currentUser = null
-        callback(null)
-      }
-    })
-  }
-}
-
-export const auth = new SupabaseAuth()
+  /**
+   * Llama a la API de logout (si la tienes).
+   */
+  logout: async () => {
+    await fetch("/api/auth/logout", { method: "POST" });
+    // Usualmente seguido de un router.push('/login') en el componente
+  },
+};

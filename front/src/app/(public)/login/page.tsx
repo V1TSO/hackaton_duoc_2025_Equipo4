@@ -1,10 +1,12 @@
+// src/app/(public)/login/page.tsx
+
 "use client";
 
 import { useState, type FormEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Heart, Shield, ArrowLeft, Mail, Lock } from "lucide-react";
 import Link from "next/link";
-import { auth } from "@/lib/auth";
+import { auth } from "@/lib/auth"; // Correcto, usa el helper que definimos
 
 export default function LoginPage() {
   const router = useRouter();
@@ -24,6 +26,7 @@ export default function LoginPage() {
     const password = formData.get("password") as string;
 
     try {
+      // Esta llamada ahora usa nuestro lib/auth.ts, que llama a /api/auth/login
       const result = await auth.login(email, password);
 
       if (!result.success) {
@@ -180,4 +183,3 @@ export default function LoginPage() {
     </div>
   );
 }
-
