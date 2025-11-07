@@ -43,3 +43,9 @@ package-lock.json
 
 # Supabase local (si usas CLI)
 .supabase/
+
+# Model artifacts - backups and images only
+backup_*/
+models/*.png
+app/ml/models/*.png
+app/ml/models/backup_*/
