@@ -4,6 +4,7 @@ from app.agents.rag_service import buscar_en_kb
 from app.schemas.analisis_schema import AnalisisEntrada, PrediccionResultado
 from app.utils.token_counter import count_tokens, estimate_cost
 import logging
+import re
 
 logger = logging.getLogger(__name__)
 
@@ -13,6 +14,48 @@ if settings.OPENAI_API_KEY:
     client = OpenAI(api_key=settings.OPENAI_API_KEY)
 else:
     logger.warning("OpenAI API key not configured. Chat features will be disabled.")
+
+def retrieve_context_from_kb(message: str, top_k: int = 2) -> str:
+    """
+    Retrieves context from the knowledge base based on the user's message.
+    
+    Args:
+        message: The user's message to extract keywords from
+        top_k: Number of top results to retrieve (not currently used, but kept for API compatibility)
+    
+    Returns:
+        Context string from the knowledge base
+    """
+    # Extract relevant health keywords from the message
+    keywords_map = {
+        "imc": ["peso", "obesidad", "imc", "sobrepeso", "kilos"],
+        "cintura": ["cintura", "abdomen", "barriga", "perímetro"],
+        "tabaquismo": ["fumar", "cigarro", "tabaco", "fumar"],
+        "actividad_fisica": ["ejercicio", "actividad", "deporte", "caminar", "correr"],
+        "sueño": ["dormir", "sueño", "descanso", "insomnio"]
+    }
+    
+    # Find matching keywords in the message
+    message_lower = message.lower()
+    matched_terms = []
+    
+    for term, keywords in keywords_map.items():
+        if any(keyword in message_lower for keyword in keywords):
+            matched_terms.append(term)
+    
+    # If no specific terms found, use default
+    if not matched_terms:
+        matched_terms = ["default"]
+    
+    logger.info(f"Extracting KB context for terms: {matched_terms}")
+    
+    # Get context from KB
+    try:
+        context_json, citations = buscar_en_kb(matched_terms, max_tokens=800)
+        return context_json
+    except Exception as e:
+        logger.error(f"Error retrieving KB context: {e}")
+        return "[]"
 
 def generar_plan_con_rag(
     prediccion: PrediccionResultado, 
