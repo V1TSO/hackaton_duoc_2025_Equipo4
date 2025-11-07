@@ -1,0 +1,38 @@
+{
+  "timestamp": "2025-11-07T06:22:31.834420",
+  "model": "XGBoost",
+  "auroc": 0.7575188106575552,
+  "brier": 0.19869777281355772,
+  "scoring": {
+    "A1_AUROC": 10,
+    "A2_Brier": 1,
+    "A3_Validation": 6,
+    "A4_SHAP": 6,
+    "total": 23
+  },
+  "fairness_gaps": {
+    "Sex": {
+      "auroc_gap": 0.026625793042384327,
+      "auroc_min": 0.7420730338879805,
+      "auroc_max": 0.7686988269303648
+    },
+    "Age": {
+      "auroc_gap": 0.12819055339783658,
+      "auroc_min": 0.5991396019652794,
+      "auroc_max": 0.727330155363116
+    },
+    "Race": {
+      "auroc_gap": 0.057017770428661185,
+      "auroc_min": 0.7497240956468425,
+      "auroc_max": 0.8067418660755037
+    }
+  },
+  "artifacts_generated": [
+    "reports/fairness_analysis.png",
+    "reports/fairness_report.json",
+    "reports/reliability_diagram.png",
+    "shap_summary.png",
+    "calibration_curves.png",
+    "roc_curve.png"
+  ]
+}
