@@ -1,101 +1,129 @@
 # app/routes/ml_routes.py
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, status
 from datetime import date
-from app.schemas.analisis_schema import AnalisisEntrada, AnalisisResultado
+from app.schemas.analisis_schema import (
+    AnalisisEntrada, 
+    PrediccionResultado, 
+    CoachEntrada, 
+    CoachResultado,
+    AnalisisRegistro
+)
 from app.services.ml_service import obtener_prediccion
-from app.agents.openai_agent import generar_consejo_salud
+from app.agents.openai_agent import generar_plan_con_rag # Importamos el nuevo agente RAG
 from app.core.security import verify_supabase_token
-from app.core.database import guardar_analisis, obtener_historial_analisis, get_supabase
+from app.core.database import guardar_analisis, obtener_historial_analisis
 
 router = APIRouter()
 
-#Endpoint principal: /predict
-@router.post("/predict", response_model=AnalisisResultado)
-async def analizar_salud(data: AnalisisEntrada, usuario=Depends(verify_supabase_token)):
+# ENDPOINT 1: /predict (Requisito A4, C1)
+# Rápido, solo devuelve el score y los drivers.
+@router.post(
+    "/predict", 
+    response_model=PrediccionResultado,
+    summary="1. Obtener Riesgo y Drivers (ML)",
+    tags=["Health (ML & Coach)"]
+)
+async def predecir_riesgo(
+    data: AnalisisEntrada, 
+    usuario=Depends(verify_supabase_token)
+):
     """
-    Envía los datos del usuario al modelo ML (Colab), obtiene el riesgo estimado
-    y genera una recomendación personalizada con el agente IA.
-    Luego guarda el resultado completo en Supabase.
+    Envía los datos del usuario al modelo ML (Colab).
+    Responde con el score de riesgo (0-1), la categoría
+    y los 'drivers' (factores clave) de la predicción.
+    
+    Cumple con el Entregable: POST /predict
+    Cumple con la Rúbrica: A4 (Explicabilidad)
     """
-    # Llamada al modelo de Machine Learning (Colab)
-    pred = obtener_prediccion(data.dict())
+    
+    # 1. Llamada al modelo de Machine Learning (Colab)
+    pred = obtener_prediccion(data)
+    
     if "error" in pred:
-        return AnalisisResultado(
-            riesgo_predicho=0.0,
-            categoria_riesgo="Desconocido",
-            recomendacion_ia=pred["error"],
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=pred["error"]
         )
 
-    riesgo = pred.get("riesgo", 0.5)
-    categoria = "Bajo" if riesgo < 0.33 else "Moderado" if riesgo < 0.66 else "Alto"
-    recomendacion = generar_consejo_salud(riesgo)
+    return PrediccionResultado(
+        score=pred["score"],
+        drivers=pred["drivers"],
+        categoria_riesgo=pred["categoria_riesgo"]
+    )
 
-    # Guardar resultado en Supabase
-    guardar_analisis(
+# ENDPOINT 2: /coach (Requisito B2, B3)
+# Orquesta el RAG, genera el plan y guarda en la BD.
+@router.post(
+    "/coach", 
+    response_model=CoachResultado,
+    summary="2. Obtener Plan de Acción (RAG) y Guardar",
+    tags=["Health (ML & Coach)"]
+)
+async def obtener_plan_coach(
+    data: CoachEntrada, 
+    usuario=Depends(verify_supabase_token)
+):
+    """
+    Recibe los resultados de /predict y los datos del usuario.
+    1. Genera un plan de acción personalizado usando RAG (LLM + /kb).
+    2. Guarda el análisis completo (entrada + predicción + plan) en Supabase.
+    3. Devuelve el plan y las citas al frontend.
+    
+    Cumple con el Entregable: POST /coach
+    Cumple con la Rúbrica: B2 (RAG) y B3 (Guardrails)
+    """
+    
+    # 1. Generar el plan con RAG
+    plan_ia, citas = generar_plan_con_rag(
+        prediccion=data.prediccion,
+        datos=data.datos_usuario
+    )
+
+    # 2. Preparar datos para guardar en Supabase
+    datos_completos = AnalisisRegistro(
         usuario_id=usuario["id"],
-        datos={
-            "fecha": date.today(),
-            "imc": data.imc,
-            "circunferencia_cintura": data.circunferencia_cintura,
-            "presion_sistolica": data.presion_sistolica,
-            "colesterol_total": data.colesterol_total,
-            "tabaquismo": data.tabaquismo,
-            "actividad_fisica": data.actividad_fisica,
-            "horas_sueno": data.horas_sueno,
-            "riesgo_predicho": riesgo,
-            "categoria_riesgo": categoria,
-            "recomendacion_ia": recomendacion,
-        },
+        fecha=data.datos_usuario.fecha,
+        imc=data.datos_usuario.imc,
+        circunferencia_cintura=data.datos_usuario.circunferencia_cintura,
+        presion_sistolica=data.datos_usuario.presion_sistolica,
+        colesterol_total=data.datos_usuario.colesterol_total,
+        tabaquismo=data.datos_usuario.tabaquismo,
+        actividad_fisica=data.datos_usuario.actividad_fisica,
+        horas_sueno=data.datos_usuario.horas_sueno,
+        edad=data.datos_usuario.edad,
+        genero=data.datos_usuario.genero,
+        
+        # Datos de salida
+        riesgo_predicho=data.prediccion.score,
+        categoria_riesgo=data.prediccion.categoria_riesgo,
+        drivers=data.prediccion.drivers,
+        recomendacion_ia=plan_ia,
+        citas_kb=citas
     )
 
-    return AnalisisResultado(
-        riesgo_predicho=riesgo,
-        categoria_riesgo=categoria,
-        recomendacion_ia=recomendacion,
+    # 3. Guardar resultado en Supabase
+    db_data = datos_completos.model_dump(exclude_unset=True)
+    db_data.pop("id", None)
+    db_data.pop("created_at", None)
+
+    resultado_db = guardar_analisis(
+        usuario_id=usuario["id"],
+        datos=db_data
+    )
+    
+    if "error" in resultado_db:
+        # Nota: El plan se entrega al usuario aunque falle la BD
+        print(f"Error al guardar en Supabase: {resultado_db['error']}")
+
+    # 4. Devolver el plan al frontend
+    return CoachResultado(
+        plan_ia=plan_ia,
+        citas_kb=citas
     )
 
-#Endpoint de historial: /history
-@router.get("/history")
-async def obtener_historial(usuario=Depends(verify_supabase_token)):
-    """
-    Devuelve todos los análisis guardados del usuario autenticado.
-    Los resultados se obtienen directamente desde Supabase.
-    """
-    historial = obtener_historial_analisis(usuario["id"])
-    if not historial:
-        return {"message": "No se encontraron análisis previos para este usuario."}
+# (Tu endpoint de Historial está bien, pero ahora debe estar
+# en 'users_routes.py' o aquí, pero no en ambos.)
+# Lo movemos a 'users_routes.py' para mantener 'ml_routes' limpio.
 
-    return {
-        "usuario_id": usuario["id"],
-        "cantidad": len(historial),
-        "historial": historial,
-    }
-
-#Endpoint de detalle: /details/{id}
-@router.get("/details/{id}")
-async def obtener_detalle_analisis(id: int, usuario=Depends(verify_supabase_token)):
-    """
-    Devuelve un análisis específico por ID.
-    Incluye los campos originales del análisis y la recomendación IA.
-    """
-    supabase = get_supabase()
-    try:
-        res = (
-            supabase.table("analisis_salud")
-            .select("*")
-            .eq("id", id)
-            .eq("usuario_id", usuario["id"])
-            .single()
-            .execute()
-        )
-
-        if not res.data:
-            raise HTTPException(
-                status_code=404,
-                detail=f"No se encontró el análisis con ID {id} para este usuario.",
-            )
-
-        return res.data
-
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error al obtener detalle: {e}")
+# MUEVE TUS ENDPOINTS /history y /details/{id} a `users_routes.py`
+# para que este archivo solo se ocupe de /predict y /coach.

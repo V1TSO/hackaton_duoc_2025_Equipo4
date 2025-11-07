@@ -1,38 +1,26 @@
-from pydantic import BaseModel
-from typing import Optional
-from datetime import date, datetime
-
-#Entrada (lo que el usuario envía desde el frontend)
-class AnalisisEntrada(BaseModel):
-    """
-    Representa los datos de entrada que el usuario entrega para el análisis
-    de salud cardiometabólico. Estos se envían al modelo de ML (Colab).
-    """
-    fecha: Optional[date] = None
-    imc: Optional[float] # back/app/schemas/analisis_schema.py
+# back/app/schemas/analisis_schema.py
 from pydantic import BaseModel
 from typing import Optional, List
 from datetime import date, datetime
 
 # ---------------------------------------------------------------------------
-# REQUISITO B1: Este es el "JSON Schema" validado que espera la API.
-# (Tu archivo original estaba bien aquí)
+# REQUISITO B1: JSON Schema de entrada (Tu archivo original está bien)
 # ---------------------------------------------------------------------------
 class AnalisisEntrada(BaseModel):
     """
     Representa los datos de entrada que el usuario entrega para el análisis
     de salud cardiometabólico.
     """
-    fecha: Optional[date] = date.today() # Mejorado: default a hoy
+    fecha: Optional[date] = date.today()
     imc: Optional[float] = None
     circunferencia_cintura: Optional[float] = None
     presion_sistolica: Optional[float] = None
-    colesterol_total: Optional[float] = None # NOTA: Asegúrate que esto no sea un "data leak" según la rúbrica
+    colesterol_total: Optional[float] = None # ¡Cuidado! Asegúrate que esto no sea un "data leak" (Rúbrica 4)
     tabaquismo: Optional[bool] = None
     actividad_fisica: Optional[str] = None # Ej: "sedentario", "moderado", "activo"
     horas_sueno: Optional[float] = None
     
-    # Datos demográficos (opcionales pero útiles para el ML)
+    # Datos demográficos (Necesarios para el ML)
     edad: Optional[int] = None 
     genero: Optional[str] = None # Ej: "M", "F"
 
@@ -42,7 +30,7 @@ class AnalisisEntrada(BaseModel):
 
 # ---------------------------------------------------------------------------
 # REQUISITO A4: Respuesta del endpoint /predict
-# (Este es un schema NUEVO y CRÍTICO)
+# (Este schema es NUEVO y CRÍTICO)
 # ---------------------------------------------------------------------------
 class PrediccionResultado(BaseModel):
     """
@@ -58,7 +46,7 @@ class PrediccionResultado(BaseModel):
 
 # ---------------------------------------------------------------------------
 # REQUISITO B2: Entrada para el endpoint /coach
-# (Este es un schema NUEVO y CRÍTICO)
+# (Este schema es NUEVO y CRÍTICO)
 # ---------------------------------------------------------------------------
 class CoachEntrada(BaseModel):
     """
@@ -87,85 +75,37 @@ class CoachResultado(BaseModel):
         from_attributes = True
 
 # ---------------------------------------------------------------------------
-# (Tu 'AnalisisRegistro' para la BD está bien, solo lo ajustamos
-# para que coincida con los nuevos nombres)
+# (Tu 'AnalisisRegistro' para la BD, pero actualizado
+# para guardar los nuevos campos de la rúbrica)
 # ---------------------------------------------------------------------------
 class AnalisisRegistro(BaseModel):
     """
     Estructura que se guarda en Supabase (tabla analisis_salud).
     Combina los datos de entrada + salida + metadatos.
     """
-    id: Optional[int]
-    created_at: Optional[datetime]
-    usuario_id: Optional[str]
+    id: Optional[int] = None
+    created_at: Optional[datetime] = None
+    usuario_id: Optional[str] = None
 
     # Datos de entrada
-    fecha: Optional[date]
-    imc: Optional[float]
-    circunferencia_cintura: Optional[float]
-    presion_sistolica: Optional[float]
-    colesterol_total: Optional[float]
-    tabaquismo: Optional[bool]
-    actividad_fisica: Optional[str]
-    horas_sueno: Optional[float]
-    edad: Optional[int]
-    genero: Optional[str]
-
-    # Datos de salida (predicción + coach)
-    riesgo_predicho: Optional[float]
-    categoria_riesgo: Optional[str]
-    drivers: Optional[List[str]] # Guardar los drivers también!
-    recomendacion_ia: Optional[str] # El plan
-    citas_kb: Optional[List[str]] # Las citas
-    fuente_modelo: Optional[str]
-
-    class Config:
-        from_attributes = True= None
+    fecha: Optional[date] = None
+    imc: Optional[float] = None
     circunferencia_cintura: Optional[float] = None
     presion_sistolica: Optional[float] = None
     colesterol_total: Optional[float] = None
     tabaquismo: Optional[bool] = None
     actividad_fisica: Optional[str] = None
     horas_sueno: Optional[float] = None
+    edad: Optional[int] = None
+    genero: Optional[str] = None
 
-    class Config:
-        orm_mode = True
-
-#Resultado (respuesta del modelo + IA)
-class AnalisisResultado(BaseModel):
-    """
-    Representa el resultado del análisis que se envía al frontend.
-    Incluye el riesgo calculado, la categoría y el mensaje del agente IA.
-    """
-    riesgo_predicho: float
-    categoria_riesgo: str
-    recomendacion_ia: str
-    fuente_modelo: str = "NHANES_XGB_v1"
-
-    class Config:
-        orm_mode = True
-
-#Registro completo (para guardar en Supabase)
-class AnalisisRegistro(BaseModel):
-    """
-    Estructura que se guarda en Supabase (tabla analisis_salud).
-    Combina los datos de entrada + salida + metadatos.
-    """
-    id: Optional[int]
-    created_at: Optional[datetime]
-    fecha: Optional[date]
-    imc: Optional[float]
-    circunferencia_cintura: Optional[float]
-    presion_sistolica: Optional[float]
-    colesterol_total: Optional[float]
-    tabaquismo: Optional[bool]
-    actividad_fisica: Optional[str]
-    horas_sueno: Optional[float]
-    riesgo_predicho: Optional[float]
-    categoria_riesgo: Optional[str]
-    recomendacion_ia: Optional[str]
-    fuente_modelo: Optional[str]
-    usuario_id: Optional[str]
+    # Datos de salida (predicción + coach)
+    riesgo_predicho: Optional[float] = None
+    categoria_riesgo: Optional[str] = None
+    drivers: Optional[List[str]] = None # ¡Guardar los drivers!
+    recomendacion_ia: Optional[str] = None # El plan
+    citas_kb: Optional[List[str]] = None # ¡Guardar las citas!
+    fuente_modelo: Optional[str] = "NHANES_XGB_v1"
 
     class Config:
         from_attributes = True
