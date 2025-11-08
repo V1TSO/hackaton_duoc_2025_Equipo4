@@ -39,11 +39,11 @@ def load_model_bundle(model_type: str = "diabetes") -> Tuple[Any, Optional[Any],
 
     try:
         if normalized_type == "diabetes":
-            model_path = models_dir / "model_xgb_calibrated.pkl"
+            model_path = models_dir / "old_model_xgb_calibrated.pkl"
             imputer_path = models_dir / "imputer.pkl"
             feature_names_path = models_dir / "feature_names.pkl"
 
-            logger.info("Loading diabetes model artifacts...")
+            logger.info("Loading diabetes model artifacts (old version)...")
 
             loaded_model = joblib.load(model_path)
 
@@ -66,8 +66,8 @@ def load_model_bundle(model_type: str = "diabetes") -> Tuple[Any, Optional[Any],
             return model, imputer, feature_names
 
         # Cardiovascular model: pipeline already embeds preprocessing and imputation
-        cardio_model_path = models_dir / "model_cardiovascular.pkl"
-        logger.info("Loading cardiovascular model artifact...")
+        cardio_model_path = models_dir / "old_model_cardiovascular.pkl"
+        logger.info("Loading cardiovascular model artifact (old version)...")
         cardio_model = joblib.load(cardio_model_path)
 
         feature_names: List[str] = []

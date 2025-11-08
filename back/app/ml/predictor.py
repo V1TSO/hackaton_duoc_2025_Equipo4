@@ -87,6 +87,11 @@ def predict_risk(
         logger.info("✓ Model loaded: %s", type(model).__name__)
 
         if normalized_type == "cardiovascular":
+            logger.info("🔍 Construyendo features cardiovasculares:")
+            logger.info(f"   edad={age}, genero={sex}, imc={bmi}, altura={height_cm}, peso={weight_kg}")
+            logger.info(f"   cintura={waist_cm}, glucosa={glucosa_mgdl}, hdl={hdl_mgdl}, ldl={ldl_mgdl}, trig={trigliceridos_mgdl}")
+            logger.info(f"   NOTA: El modelo cardiovascular NO usa presión sistólica ni colesterol total directamente")
+            
             features_df = build_cardiovascular_feature_frame(
                 edad=age,
                 genero=sex,
@@ -100,9 +105,22 @@ def predict_risk(
                 ldl_mgdl=ldl_mgdl,
                 feature_names=feature_names,
             )
+            
+            logger.info(f"🔍 Features construidas - IMC: {features_df['imc'].iloc[0] if 'imc' in features_df.columns else 'N/A'}, "
+                       f"rel_cintura_altura: {features_df['rel_cintura_altura'].iloc[0] if 'rel_cintura_altura' in features_df.columns else 'N/A'}")
 
+            # El modelo cardiovascular es un pipeline que maneja preprocesamiento internamente
             risk_score = float(model.predict_proba(features_df)[0, 1])
+            
+            # Validar score extremo que podría indicar problema con los datos
+            if risk_score < 0.01:
+                logger.warning(f"⚠️ Score extremadamente bajo ({risk_score:.4f}) detectado. "
+                             f"Verificar si los valores de entrada son correctos o si el modelo está fuera de rango.")
+                logger.warning(f"   Valores críticos: IMC={bmi}, edad={age}, rel_cintura_altura={features_df['rel_cintura_altura'].iloc[0] if 'rel_cintura_altura' in features_df.columns else 'N/A'}")
+            
             drivers = _get_cardiovascular_drivers(model, features_df, feature_names)
+            
+            logger.info(f"🔍 Score predicho: {risk_score:.4f}")
         else:
             X = build_feature_frame(
                 age=age,
@@ -135,7 +153,7 @@ def predict_risk(
             risk_score = float(model.predict_proba(X_imp)[0, 1])
             drivers = _get_diabetes_drivers(model, features_df, valid_feature_names)
 
-        risk_level, recommendation = _interpret_risk(risk_score)
+        risk_level, recommendation = _interpret_risk(risk_score, model_type=normalized_type)
 
         logger.info("✓ Prediction complete: score=%.3f, level=%s", risk_score, risk_level)
         logger.info("=" * 80)
@@ -153,19 +171,31 @@ def predict_risk(
         raise
 
 
-def _interpret_risk(score: float) -> tuple[str, str]:
+def _interpret_risk(score: float, model_type: str = "diabetes") -> tuple[str, str]:
     """
     Returns (risk_level, recommendation) where risk_level is in English for DB storage.
+    Different thresholds are applied based on model type due to different calibration characteristics.
     """
-    if score < 0.3:
-        return "low", "Mantener hábitos saludables"
-    if score < 0.6:
-        return "moderate", "Mejorar estilo de vida con coaching personalizado"
+    if model_type == "cardiovascular":
+        if score < 0.20:
+            return "low", "Mantener hábitos saludables"
+        if score < 0.30:
+            return "moderate", "Mejorar estilo de vida con coaching personalizado"
+        
+        recommendation = "Consultar con profesional de salud urgentemente"
+        if score >= 0.35:
+            recommendation += " y coordinar evaluación médica profesional"
+        return "high", recommendation
+    else:
+        if score < 0.3:
+            return "low", "Mantener hábitos saludables"
+        if score < 0.6:
+            return "moderate", "Mejorar estilo de vida con coaching personalizado"
 
-    recommendation = "Consultar con profesional de salud urgentemente"
-    if score >= REFERRAL_THRESHOLD:
-        recommendation += " y coordinar evaluación médica profesional"
-    return "high", recommendation
+        recommendation = "Consultar con profesional de salud urgentemente"
+        if score >= REFERRAL_THRESHOLD:
+            recommendation += " y coordinar evaluación médica profesional"
+        return "high", recommendation
 
 
 def _get_diabetes_drivers(model, features_df: pd.DataFrame, feature_names: List[str]) -> List[Dict[str, Any]]:

@@ -55,7 +55,7 @@ def retrieve_context_from_kb(message: str, top_k: int = 2) -> str:
         return context_json
     except Exception as e:
         logger.error(f"Error retrieving KB context: {e}")
-        return "[]"
+        raise Exception(f"Error al recuperar contexto de la base de conocimiento: {e}")
 
 def generar_plan_con_rag(
     prediccion: PrediccionResultado, 
@@ -64,7 +64,7 @@ def generar_plan_con_rag(
     
     if client is None:
         logger.error("OpenAI client not initialized. Cannot generate plan.")
-        return "Servicio de recomendaciones no disponible. Configure OPENAI_API_KEY para habilitar esta función.", []
+        raise Exception("El servicio de recomendaciones no está disponible. Configure OPENAI_API_KEY para habilitar esta función.")
     
     logger.info(f"Generando plan RAG (JSON-Input) para riesgo: {prediccion.categoria_riesgo}")
     
@@ -75,8 +75,7 @@ def generar_plan_con_rag(
         contexto_rag, citas_kb = buscar_en_kb(driver_features)
     except Exception as e:
         logger.error(f"Fallo en 'buscar_en_kb': {e}")
-        # Fallback: le pasamos un JSON array vacío
-        contexto_rag, citas_kb = "[]", [] 
+        raise Exception(f"Error al buscar en la base de conocimiento: {e}") 
 
     # Optimized: More concise system prompt (~30% reduction)
     system_prompt = """
@@ -89,10 +88,10 @@ def generar_plan_con_rag(
     """
 
     # Optimized: Tabular format for user data (more token-efficient)
-    altura = f"{datos.altura_cm}cm" if datos.altura_cm is not None else "N/D"
-    peso = f"{datos.peso_kg}kg" if datos.peso_kg is not None else "N/D"
-    presion = f"{datos.presion_sistolica}mmHg" if datos.presion_sistolica is not None else "N/D"
-    colesterol = f"{datos.colesterol_total}mg/dL" if datos.colesterol_total is not None else "N/D"
+    altura = f"{datos.altura_cm}cm" if datos.altura_cm is not None else "no disponible"
+    peso = f"{datos.peso_kg}kg" if datos.peso_kg is not None else "no disponible"
+    presion = f"{datos.presion_sistolica}mmHg" if datos.presion_sistolica is not None else "no disponible"
+    colesterol = f"{datos.colesterol_total}mg/dL" if datos.colesterol_total is not None else "no disponible"
 
     user_data_table = f"""
 Usuario | Edad: {datos.edad} | Sexo: {datos.genero} | IMC: {datos.imc} | Cintura: {datos.circunferencia_cintura}cm
@@ -143,18 +142,31 @@ Tarea: Explica riesgo "{prediccion.categoria_riesgo}" + 2-3 acciones concretas (
         if "diagnóstico médico" not in plan_ia.lower():
              plan_ia += "\n\nRecuerda que esto no es un diagnóstico médico. Consulta a un profesional de la salud."
 
-        citas_reales_en_texto = [c for c in citas_kb if c in plan_ia]
+        # Verificar que las citas estén en el formato correcto [Cita: nombre_cita]
+        citas_reales_en_texto = []
+        for cita in citas_kb:
+            # Buscar citas en formato [Cita: nombre] o variaciones
+            cita_patterns = [
+                f"[Cita: {cita}]",
+                f"[Cita:{cita}]",
+                f"Cita: {cita}",
+                f"Fuente: {cita}",
+                cita  # La cita puede aparecer directamente
+            ]
+            if any(pattern in plan_ia for pattern in cita_patterns):
+                citas_reales_en_texto.append(cita)
+        
+        # Si no se encontraron citas en el texto, añadirlas al final
         if not citas_reales_en_texto and citas_kb:
-            logger.warning("El LLM no incluyó citas en el texto. Añadiendo al final.")
-            plan_ia += f"\n\nFuentes: {', '.join(citas_kb)}"
+            logger.warning("El LLM no incluyó citas en el formato esperado. Añadiendo al final.")
+            citas_formateadas = [f"[Cita: {c}]" for c in citas_kb]
+            plan_ia += f"\n\n**Fuentes consultadas:** {', '.join(citas_formateadas)}"
             citas_reales_en_texto = citas_kb
+        elif citas_reales_en_texto:
+            logger.info(f"Citas encontradas en el texto: {citas_reales_en_texto}")
 
         return plan_ia, citas_reales_en_texto
 
     except Exception as e:
         logger.error(f"Error en la API de OpenAI: {e}")
-        plan_ia = (
-            "El servicio de generación de planes personalizados no está disponible en este momento. "
-            "Por favor, inténtalo nuevamente más tarde."
-        )
-        return plan_ia, []
+        raise Exception(f"Error al generar el plan personalizado: {e}")

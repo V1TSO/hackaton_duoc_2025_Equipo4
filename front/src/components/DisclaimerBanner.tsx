@@ -21,10 +21,10 @@ export function DisclaimerBanner() {
   if (!isVisible) return null;
 
   return (
-    <div className="bg-yellow-50 border-b border-yellow-200 px-4 py-3">
+    <div className="bg-yellow-50 border-b border-yellow-200 px-4 py-3" role="alert" aria-live="polite">
       <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
         <div className="flex items-center gap-3 flex-1">
-          <Shield className="h-5 w-5 text-yellow-600 flex-shrink-0" />
+          <Shield className="h-5 w-5 text-yellow-600 flex-shrink-0" aria-hidden="true" />
           <p className="text-sm text-yellow-800">
             <strong>Importante:</strong> CardioSense es una herramienta educativa.
             No reemplaza el diagnóstico médico profesional. Siempre consulta con tu médico.
@@ -33,9 +33,9 @@ export function DisclaimerBanner() {
         <button
           onClick={handleDismiss}
           className="text-yellow-600 hover:text-yellow-800 transition-colors"
-          aria-label="Cerrar disclaimer"
+          aria-label="Cerrar aviso de disclaimer"
         >
-          <X className="h-5 w-5" />
+          <X className="h-5 w-5" aria-hidden="true" />
         </button>
       </div>
     </div>

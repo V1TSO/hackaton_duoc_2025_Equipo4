@@ -45,6 +45,13 @@ def obtener_prediccion(data: AnalisisEntrada, model_type: str | None = None) -> 
             }
             days_mvpa_week = activity_map.get(data.actividad_fisica.lower(), 0)
         
+        logger.info(f"📊 Llamando predict_risk con modelo '{selected_model}':")
+        logger.info(f"   edad={data.edad}, sexo={data.genero}, altura={height_cm}, peso={weight_kg}")
+        logger.info(f"   IMC={bmi}, cintura={waist_cm}, sueño={sleep_hours}")
+        logger.info(f"   tabaquismo={data.tabaquismo} (→ {smokes_cig_day} cig/día), actividad={data.actividad_fisica} (→ {days_mvpa_week} días)")
+        logger.info(f"   presión_sistólica={data.presion_sistolica}, colesterol_total={data.colesterol_total}")
+        logger.info(f"   glucosa={data.glucosa_mgdl}, hdl={data.hdl_mgdl}, ldl={data.ldl_mgdl}, trig={data.trigliceridos_mgdl}")
+        
         result = predict_risk(
             age=data.edad,
             sex=data.genero,
@@ -63,6 +70,8 @@ def obtener_prediccion(data: AnalisisEntrada, model_type: str | None = None) -> 
             trigliceridos_mgdl=data.trigliceridos_mgdl,
             ldl_mgdl=data.ldl_mgdl
         )
+        
+        logger.info(f"📊 Resultado: score={result.get('score')}, risk_level={result.get('risk_level')}")
         
         # Preserve full driver objects with descriptions, values, and impact
         drivers_full = result['drivers']

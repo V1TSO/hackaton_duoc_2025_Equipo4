@@ -131,8 +131,9 @@ export function CoachChat({ assessmentId }: CoachChatProps) {
           <button
             onClick={() => setIsExpanded(false)}
             className="text-white hover:bg-white/20 rounded-lg p-2 transition-colors"
+            aria-label="Cerrar chat del coach"
           >
-            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
             </svg>
           </button>
@@ -214,7 +215,9 @@ export function CoachChat({ assessmentId }: CoachChatProps) {
             onChange={(e) => setInput(e.target.value)}
             onKeyPress={handleKeyPress}
             placeholder="Escribe tu pregunta aquí..."
-            className="flex-1 px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-green-500 resize-none text-sm"
+            aria-label="Pregunta para el coach de salud"
+            className="flex-1 px-4 py-3 rounded-xl border-0 focus:ring-0 focus:outline-none resize-none text-sm bg-gray-50 text-gray-950 placeholder:text-gray-500 focus:bg-gray-100 shadow-none"
+            style={{ border: 'none', outline: 'none' }}
             rows={2}
             disabled={isLoading}
           />
@@ -222,8 +225,9 @@ export function CoachChat({ assessmentId }: CoachChatProps) {
             onClick={handleSend}
             disabled={!input.trim() || isLoading}
             className="px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-xl font-semibold hover:shadow-lg hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 flex items-center gap-2"
+            aria-label="Enviar pregunta al coach"
           >
-            <Send className="h-4 w-4" />
+            <Send className="h-4 w-4" aria-hidden="true" />
             Enviar
           </button>
         </div>

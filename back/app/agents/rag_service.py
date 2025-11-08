@@ -21,6 +21,109 @@ except Exception as e:
 
 logger.info(f"Ruta de la Base de Conocimiento (KB) configurada en: {KB_PATH}")
 
+# Mapeo de nombres técnicos de features NHANES a nombres de archivos KB
+FEATURE_TO_KB_MAP = {
+    # Features de presión arterial
+    'bpxsy1': 'default',  # Presión sistólica - usar default
+    'bpxsy2': 'default',
+    'bpxsy3': 'default',
+    'bpxsy4': 'default',
+    'bpxdi1': 'default',  # Presión diastólica
+    'bpxdi2': 'default',
+    'bpxdi3': 'default',
+    'bpxdi4': 'default',
+    'systolic_bp': 'default',
+    'diastolic_bp': 'default',
+    
+    # Features de medidas corporales
+    'bmxsad2': 'cintura',  # Sagittal Abdominal Diameter - relacionado con cintura
+    'bmxwaist': 'cintura',
+    'bmxbmi': 'imc',
+    'bmxht': 'imc',  # Altura
+    'bmxwt': 'imc',  # Peso
+    'bmi': 'imc',
+    'waist_height_ratio': 'cintura',
+    'waist_cm': 'cintura',
+    'circunferencia_cintura': 'cintura',
+    'cintura_cm': 'cintura',
+    'central_obesity': 'cintura',
+    'high_waist_height_ratio': 'cintura',
+    
+    # Features de peso muestral (no relevantes para KB)
+    'wtmec2yr': 'default',
+    'wtint2yr': 'default',
+    'wtmec4yr': 'default',
+    'wtint4yr': 'default',
+    
+    # Features de estado/demografía
+    'ridstatr': 'default',  # Estado de residencia
+    'ridageyr': 'default',  # Edad
+    'riagendr': 'default',  # Género
+    
+    # Features de sueño
+    'sleep_hours': 'sueño',
+    'poor_sleep': 'sueño',
+    'slq': 'sueño',  # Sleep questionnaire
+    
+    # Features de tabaquismo
+    'smq': 'tabaquismo',  # Smoking questionnaire
+    'cigarettes_per_day': 'tabaquismo',
+    'current_smoker': 'tabaquismo',
+    'ever_smoker': 'tabaquismo',
+    
+    # Features de actividad física
+    'paq': 'actividad_fisica',  # Physical activity questionnaire
+    'total_active_days': 'actividad_fisica',
+    'days_mvpa_week': 'actividad_fisica',
+    'meets_activity_guidelines': 'actividad_fisica',
+    'sedentary_flag': 'actividad_fisica',
+    
+    # Features de estilo de vida
+    'lifestyle_risk_score': 'default',
+    'high_risk_profile': 'default',
+    
+    # Features de interacción
+    'bmi_age_interaction': 'imc',
+    'waist_age_interaction': 'cintura',
+    'age_squared': 'default',
+    'age_poor_sleep': 'sueño',
+}
+
+def map_feature_to_kb(feature_name: str) -> str:
+    """
+    Mapea un nombre técnico de feature a un nombre de archivo KB.
+    
+    Args:
+        feature_name: Nombre técnico de la feature (ej: 'BPXSY1', 'bmi', 'sleep_hours')
+    
+    Returns:
+        Nombre del archivo KB correspondiente (sin extensión)
+    """
+    feature_lower = feature_name.lower()
+    
+    # Buscar coincidencia exacta
+    if feature_lower in FEATURE_TO_KB_MAP:
+        return FEATURE_TO_KB_MAP[feature_lower]
+    
+    # Buscar por prefijos comunes
+    if feature_lower.startswith('bpx') or 'systolic' in feature_lower or 'diastolic' in feature_lower or 'bp' in feature_lower:
+        return 'default'
+    if feature_lower.startswith('bmx') or 'bmi' in feature_lower or 'weight' in feature_lower or 'height' in feature_lower:
+        return 'imc'
+    if 'waist' in feature_lower or 'cintura' in feature_lower or 'sad' in feature_lower:
+        return 'cintura'
+    if 'sleep' in feature_lower or 'sueño' in feature_lower or 'slq' in feature_lower:
+        return 'sueño'
+    if 'smoke' in feature_lower or 'cigarette' in feature_lower or 'smq' in feature_lower or 'tabaco' in feature_lower:
+        return 'tabaquismo'
+    if 'activity' in feature_lower or 'active' in feature_lower or 'paq' in feature_lower or 'mvpa' in feature_lower or 'sedentary' in feature_lower:
+        return 'actividad_fisica'
+    if feature_lower.startswith('wt') and ('mec' in feature_lower or 'int' in feature_lower):
+        return 'default'  # Pesos muestrales - usar default
+    
+    # Por defecto
+    return 'default'
+
 
 def load_kb_content(termino_clave: str) -> dict | None:
     """
@@ -83,8 +186,9 @@ def buscar_en_kb(terminos_clave: list[str], max_tokens: int = None) -> tuple[str
     for termino in terminos_clave:
         if termino.lower() == "default":
             continue
-            
-        termino_limpio = termino.lower().split('_')[0]
+        
+        # Mapear el nombre técnico de la feature a un nombre de archivo KB
+        termino_limpio = map_feature_to_kb(termino)
         kb_entry = load_kb_content(termino_limpio)
         
         if kb_entry:
@@ -128,7 +232,7 @@ def buscar_en_kb(terminos_clave: list[str], max_tokens: int = None) -> tuple[str
     elif default_doc:
         logger.warning(f"No hay espacio para 'default' ({default_doc['tokens']} tokens)")
 
-    # 4. Si no hay contenido, usar mínimo default
+    # 4. Si no hay contenido, lanzar error
     if not contexto_json:
         if default_doc:
             # Truncar default para que quepa
@@ -138,7 +242,7 @@ def buscar_en_kb(terminos_clave: list[str], max_tokens: int = None) -> tuple[str
             tokens_used = count_tokens(json.dumps(truncated_default, ensure_ascii=False))
         else:
             logger.error("Contexto RAG está vacío. Ningún archivo .json coincidió.")
-            return "[]", []
+            raise Exception("No se encontró contenido en la base de conocimiento. Por favor, verifica que los archivos de la KB estén disponibles.")
 
     # 5. Generar string JSON final
     contexto_rag_string = json.dumps(contexto_json, indent=2, ensure_ascii=False)

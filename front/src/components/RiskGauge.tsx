@@ -79,8 +79,8 @@ export function RiskGauge({
 
   return (
     <div className="flex flex-col items-center gap-4">
-      <div className={`relative ${config.container}`}>
-        <svg className="transform -rotate-90" width="100%" height="100%">
+      <div className={`relative ${config.container}`} role="img" aria-label={`Indicador de riesgo: ${riskLabel}, puntuación ${Math.round(displayScore * 100)} de 100`}>
+        <svg className="transform -rotate-90" width="100%" height="100%" aria-hidden="true">
           <circle
             cx="50%"
             cy="50%"

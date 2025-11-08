@@ -1,4 +1,5 @@
 export * from "./DisclaimerBanner";
+export * from "./ResetAccountButton";
 export * from "./RiskGauge";
 export * from "./ShareButton";
 export * from "./LoadingSpinner";

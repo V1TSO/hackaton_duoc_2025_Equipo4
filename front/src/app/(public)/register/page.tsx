@@ -69,7 +69,9 @@ export default function RegisterPage() {
                       name="firstName"
                       type="text"
                       required
-                      className="w-full pl-10 pr-3 py-2.5 rounded-lg border border-gray-300 bg-white text-gray-900 text-sm outline-none transition focus:border-red-500 focus:ring-2 focus:ring-red-200 placeholder:text-gray-400"
+                      aria-label="Nombre"
+                      className="w-full pl-10 pr-3 py-2.5 rounded-lg border-0 bg-gray-50 text-gray-950 text-sm outline-none transition focus:bg-gray-100 focus:ring-0 focus:outline-none placeholder:text-gray-500 shadow-none"
+                      style={{ border: 'none', outline: 'none' }}
                       placeholder="Juan"
                     />
                   </div>
@@ -86,7 +88,9 @@ export default function RegisterPage() {
                       name="lastName"
                       type="text"
                       required
-                      className="w-full pl-10 pr-3 py-2.5 rounded-lg border border-gray-300 bg-white text-gray-900 text-sm outline-none transition focus:border-red-500 focus:ring-2 focus:ring-red-200 placeholder:text-gray-400"
+                      aria-label="Apellido"
+                      className="w-full pl-10 pr-3 py-2.5 rounded-lg border-0 bg-gray-50 text-gray-950 text-sm outline-none transition focus:bg-gray-100 focus:ring-0 focus:outline-none placeholder:text-gray-500 shadow-none"
+                      style={{ border: 'none', outline: 'none' }}
                       placeholder="Pérez"
                     />
                   </div>
@@ -105,7 +109,9 @@ export default function RegisterPage() {
                     type="email"
                     required
                     autoComplete="email"
-                    className="w-full pl-10 pr-3 py-2.5 rounded-lg border border-gray-300 bg-white text-gray-900 text-sm outline-none transition focus:border-red-500 focus:ring-2 focus:ring-red-200 placeholder:text-gray-400"
+                    aria-label="Correo electrónico"
+                    className="w-full pl-10 pr-3 py-2.5 rounded-lg border-0 bg-gray-50 text-gray-950 text-sm outline-none transition focus:bg-gray-100 focus:ring-0 focus:outline-none placeholder:text-gray-500 shadow-none"
+                    style={{ border: 'none', outline: 'none' }}
                     placeholder="tu@email.com"
                   />
                 </div>
@@ -125,7 +131,9 @@ export default function RegisterPage() {
                       min="18"
                       max="120"
                       required
-                      className="w-full pl-10 pr-3 py-2.5 rounded-lg border border-gray-300 bg-white text-gray-900 text-sm outline-none transition focus:border-red-500 focus:ring-2 focus:ring-red-200 placeholder:text-gray-400"
+                      aria-label="Edad"
+                      className="w-full pl-10 pr-3 py-2.5 rounded-lg border-0 bg-gray-50 text-gray-950 text-sm outline-none transition focus:bg-gray-100 focus:ring-0 focus:outline-none placeholder:text-gray-500 shadow-none"
+                      style={{ border: 'none', outline: 'none' }}
                       placeholder="25"
                     />
                   </div>
@@ -139,7 +147,9 @@ export default function RegisterPage() {
                     id="sex"
                     name="sex"
                     required
-                    className="w-full px-3 py-2.5 rounded-lg border border-gray-300 bg-white text-gray-900 text-sm outline-none transition focus:border-red-500 focus:ring-2 focus:ring-red-200"
+                    aria-label="Sexo"
+                    className="w-full px-3 py-2.5 rounded-lg border-0 bg-gray-50 text-gray-950 text-sm outline-none transition focus:bg-gray-100 focus:ring-0 focus:outline-none shadow-none"
+                    style={{ border: 'none', outline: 'none' }}
                   >
                     <option value="">Seleccionar</option>
                     <option value="M">Masculino</option>
@@ -160,11 +170,14 @@ export default function RegisterPage() {
                     type="password"
                     required
                     autoComplete="new-password"
-                    className="w-full pl-10 pr-3 py-2.5 rounded-lg border border-gray-300 bg-white text-gray-900 text-sm outline-none transition focus:border-red-500 focus:ring-2 focus:ring-red-200 placeholder:text-gray-400"
+                    aria-label="Contraseña"
+                    aria-describedby="password-hint"
+                    className="w-full pl-10 pr-3 py-2.5 rounded-lg border-0 bg-gray-50 text-gray-950 text-sm outline-none transition focus:bg-gray-100 focus:ring-0 focus:outline-none placeholder:text-gray-500 shadow-none"
+                    style={{ border: 'none', outline: 'none' }}
                     placeholder="••••••••"
                   />
                 </div>
-                <p className="text-xs text-gray-500">Mínimo 6 caracteres</p>
+                <p id="password-hint" className="text-xs text-gray-500">Mínimo 6 caracteres</p>
               </div>
 
               <div className="space-y-2">
@@ -179,7 +192,9 @@ export default function RegisterPage() {
                     type="password"
                     required
                     autoComplete="new-password"
-                    className="w-full pl-10 pr-3 py-2.5 rounded-lg border border-gray-300 bg-white text-gray-900 text-sm outline-none transition focus:border-red-500 focus:ring-2 focus:ring-red-200 placeholder:text-gray-400"
+                    aria-label="Confirmar contraseña"
+                    className="w-full pl-10 pr-3 py-2.5 rounded-lg border-0 bg-gray-50 text-gray-950 text-sm outline-none transition focus:bg-gray-100 focus:ring-0 focus:outline-none placeholder:text-gray-500 shadow-none"
+                    style={{ border: 'none', outline: 'none' }}
                     placeholder="••••••••"
                   />
                 </div>
@@ -191,7 +206,7 @@ export default function RegisterPage() {
                   name="terms"
                   type="checkbox"
                   required
-                  className="mt-1 h-4 w-4 text-red-600 focus:ring-red-500 border-gray-300 rounded"
+                  className="mt-1 h-4 w-4 text-gray-600 focus:ring-gray-500 bg-gray-50 rounded"
                 />
                 <label htmlFor="terms" className="text-xs text-gray-600">
                   Acepto los <Link href="/terms" className="text-red-600 hover:underline">términos y condiciones</Link> y

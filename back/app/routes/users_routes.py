@@ -70,3 +70,28 @@ async def eliminar_perfil(usuario=Depends(verify_supabase_token)):
         return {"message": "Perfil eliminado correctamente."}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error al eliminar el perfil: {e}")
+
+#Endpoint: Resetear toda la cuenta del usuario
+@router.delete("/reset-account")
+async def resetear_cuenta_completa(usuario=Depends(verify_supabase_token)):
+    """
+    Elimina TODOS los datos del usuario: mensajes, sesiones, assessments y análisis.
+    Esta es una operación destructiva que resetea completamente la cuenta del usuario.
+    La cuenta de autenticación en Supabase Auth NO se elimina.
+    """
+    from app.core.database import delete_all_user_data
+    access_token = usuario.get("_access_token")
+    
+    result = delete_all_user_data(usuario["id"], access_token)
+    
+    if "error" in result:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=result["error"]
+        )
+    
+    return {
+        "message": "Cuenta reseteada correctamente. Todos tus datos han sido eliminados.",
+        "deleted": result.get("deleted", {}),
+        "total": result.get("total", 0)
+    }

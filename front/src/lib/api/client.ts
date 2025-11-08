@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/client";
 import type { MessageResponse } from "@/lib/types";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "https://v1tso-cardiosense.hf.space";
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 const API_AVAILABLE = process.env.NEXT_PUBLIC_API_AVAILABLE !== "false";
 
 export class APIError extends Error {
@@ -81,17 +81,7 @@ export const healthAPI = {
     sessionId?: string
   ): Promise<MessageResponse> {
     if (!API_AVAILABLE) {
-      return {
-        reply:
-          "El servicio de mensajería inteligente no está disponible porque el backend no está conectado. Conéctalo y vuelve a intentarlo.",
-        extracted_data: {},
-        is_ready: false,
-        action: "continue",
-        session_id: sessionId,
-        prediction_made: false,
-        model_used: undefined,
-        assessment_id: undefined,
-      };
+      throw new APIError("El backend no está disponible. Por favor, inicia el servidor backend y vuelve a intentarlo.");
     }
 
     const requestBody = {
@@ -130,17 +120,7 @@ export const healthAPI = {
     assessmentId: string
   ): Promise<MessageResponse> {
     if (!API_AVAILABLE) {
-      return {
-        reply:
-          "El servicio de coach no está disponible porque el backend no está conectado.",
-        extracted_data: {},
-        is_ready: false,
-        action: "continue",
-        session_id: assessmentId,
-        prediction_made: false,
-        model_used: undefined,
-        assessment_id: assessmentId,
-      };
+      throw new APIError("El backend no está disponible. Por favor, inicia el servidor backend y vuelve a intentarlo.");
     }
 
     const requestBody = {

@@ -52,7 +52,10 @@ function LoginForm() {
               type="email"
               required
               autoComplete="email"
-              className="w-full pl-10 pr-3 py-3 rounded-xl border border-gray-300 bg-white text-gray-900 text-sm outline-none transition focus:border-red-500 focus:ring-2 focus:ring-red-200 placeholder:text-gray-400"
+              aria-label="Correo electrónico"
+              aria-describedby="email-description"
+              className="w-full pl-10 pr-3 py-3 rounded-xl border-0 bg-gray-50 text-gray-950 text-sm outline-none transition focus:bg-gray-100 focus:ring-0 focus:outline-none placeholder:text-gray-500 shadow-none"
+              style={{ border: 'none', outline: 'none' }}
               placeholder="tu@email.com"
             />
           </div>
@@ -73,7 +76,10 @@ function LoginForm() {
               type="password"
               required
               autoComplete="current-password"
-              className="w-full pl-10 pr-3 py-3 rounded-xl border border-gray-300 bg-white text-gray-900 text-sm outline-none transition focus:border-red-500 focus:ring-2 focus:ring-red-200 placeholder:text-gray-400"
+              aria-label="Contraseña"
+              aria-describedby="password-description"
+              className="w-full pl-10 pr-3 py-3 rounded-xl border-0 bg-gray-50 text-gray-950 text-sm outline-none transition focus:bg-gray-100 focus:ring-0 focus:outline-none placeholder:text-gray-500 shadow-none"
+              style={{ border: 'none', outline: 'none' }}
               placeholder="••••••••"
             />
           </div>

@@ -190,13 +190,8 @@ class CoachGenerator:
         retrieved_docs = self.retriever.retrieve(query, top_k=3)
         
         if not retrieved_docs:
-            logger.warning("No se recuperaron documentos. Usando fallback.")
-            message = self._service_unavailable_message()
-            return {
-                'plan': message,
-                'sources': [],
-                'error': 'No se encontraron documentos relevantes'
-            }
+            logger.error("No se recuperaron documentos de la base de conocimiento.")
+            raise Exception("No se encontraron documentos relevantes en la base de conocimiento. Por favor, verifica la configuración de la KB.")
         
         context = self._build_context(retrieved_docs)
         sources = list(set([doc['source'] for doc in retrieved_docs]))
@@ -263,13 +258,19 @@ class CoachGenerator:
     ) -> str:
         """Construye el prompt para OpenAI."""
         
-        age = user_profile.get('age', user_profile.get('edad', 'N/A'))
-        sex = user_profile.get('sex', user_profile.get('genero', 'N/A'))
-        sex_text = 'masculino' if sex == 'M' else 'femenino' if sex == 'F' else 'N/A'
+        age = user_profile.get('age') or user_profile.get('edad')
+        if age is None:
+            raise ValueError("La edad del usuario es requerida")
+        
+        sex = user_profile.get('sex') or user_profile.get('genero')
+        if sex not in ['M', 'F']:
+            raise ValueError("El sexo del usuario debe ser 'M' o 'F'")
+        
+        sex_text = 'masculino' if sex == 'M' else 'femenino'
         
         drivers_text = "\n".join([
-            f"- {d.get('description', d.get('feature', 'N/A'))}: "
-            f"valor {d.get('value', 'N/A'):.2f} ({d.get('impact', 'N/A')} el riesgo)"
+            f"- {d.get('description') or d.get('feature', 'Factor desconocido')}: "
+            f"valor {d.get('value', 0):.2f} ({d.get('impact', 'impacto desconocido')} el riesgo)"
             for d in top_drivers[:5]
         ])
         

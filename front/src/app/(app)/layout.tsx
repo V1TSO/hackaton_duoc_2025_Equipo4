@@ -1,5 +1,5 @@
 import { requireUser } from "@/lib/auth-helpers";
-import { DisclaimerBanner, ApiStatusBanner, LogoutButton } from "@/components";
+import { DisclaimerBanner, ApiStatusBanner, LogoutButton, ResetAccountButton } from "@/components";
 import {
   Heart,
   LayoutDashboard,
@@ -21,11 +21,14 @@ export default async function AppLayout({
 
   return (
     <div className="min-h-screen bg-gray-50">
+      <a href="#main-content" className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-50 focus:px-4 focus:py-2 focus:bg-red-600 focus:text-white focus:rounded">
+        Saltar al contenido principal
+      </a>
       <DisclaimerBanner />
       <ApiStatusBanner />
       
       <div className="flex">
-        <aside className="hidden md:flex md:flex-col md:w-64 bg-white border-r border-gray-200 min-h-screen">
+        <aside className="hidden md:flex md:flex-col md:w-64 bg-white border-r border-gray-200 min-h-screen" role="navigation" aria-label="Navegación principal">
           <div className="p-6 border-b border-gray-200">
             <Link href="/app" className="flex items-center gap-2">
               <Heart className="h-8 w-8 text-red-600" />
@@ -33,7 +36,7 @@ export default async function AppLayout({
             </Link>
           </div>
 
-          <nav className="flex-1 p-4 space-y-1">
+          <nav className="flex-1 p-4 space-y-1" aria-label="Menú principal">
             <NavLink href="/app" icon={LayoutDashboard}>
               Dashboard
             </NavLink>
@@ -58,12 +61,15 @@ export default async function AppLayout({
                 {session.user.email}
               </p>
             </div>
-            <LogoutButton />
+            <div className="space-y-2">
+              <LogoutButton />
+              <ResetAccountButton />
+            </div>
           </div>
         </aside>
 
-        <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-50">
-          <nav className="flex justify-around items-center py-2">
+        <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t-2 border-gray-200 z-50 shadow-lg" aria-label="Navegación móvil">
+          <div className="flex justify-around items-stretch">
             <MobileNavLink href="/app" icon={LayoutDashboard}>
               Dashboard
             </MobileNavLink>
@@ -79,10 +85,10 @@ export default async function AppLayout({
             <MobileNavLink href="/history" icon={History}>
               Historial
             </MobileNavLink>
-          </nav>
-        </div>
+          </div>
+        </nav>
 
-        <main className="flex-1 pb-20 md:pb-0">
+        <main id="main-content" className="flex-1 pb-20 md:pb-0" role="main">
           {children}
         </main>
       </div>
@@ -122,10 +128,11 @@ function MobileNavLink({
   return (
     <Link
       href={href}
-      className="flex flex-col items-center gap-1 px-2 py-1 text-xs font-medium text-gray-600 hover:text-red-600 transition-colors"
+      className="flex flex-col items-center justify-center gap-1 min-w-[60px] min-h-[56px] px-2 py-2 text-xs font-medium text-gray-600 hover:text-red-600 transition-colors active:bg-gray-100 rounded-lg"
+      aria-label={children as string}
     >
-      <Icon className="h-5 w-5" />
-      <span className="hidden xs:inline">{children}</span>
+      <Icon className="h-6 w-6 flex-shrink-0" aria-hidden="true" />
+      <span className="text-[10px] leading-tight text-center max-w-[60px] truncate">{children}</span>
     </Link>
   );
 }

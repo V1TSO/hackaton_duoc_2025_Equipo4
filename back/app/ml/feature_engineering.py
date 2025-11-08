@@ -293,6 +293,13 @@ def build_cardiovascular_feature_frame(
         except Exception:
             trigliceridos_log = np.nan
 
+    # Log valores críticos antes de construir features
+    logger.info(f"🔍 Construyendo features cardiovasculares:")
+    logger.info(f"   edad={edad}, sexo={genero}, imc={bmi_value}")
+    logger.info(f"   cintura={circunferencia_cintura}, rel_cintura_altura={rel_cintura_altura}")
+    logger.info(f"   glucosa={glucosa_mgdl}, hdl={hdl_mgdl}, ldl={ldl_mgdl}, trig={trigliceridos_mgdl}")
+    logger.info(f"   Valores faltantes: hdl={hdl_mgdl is None}, ldl={ldl_mgdl is None}, trig={trigliceridos_mgdl is None}")
+    
     cardio_values: Dict[str, Any] = {
         'edad': float(edad),
         'sexo': sexo_value,
@@ -314,6 +321,12 @@ def build_cardiovascular_feature_frame(
         'etnia_4.0': 0.0,
         'etnia_5.0': 0.0
     }
+    
+    # Validar valores extremos que podrían indicar errores de entrada
+    if bmi_value is not None and bmi_value > 60:
+        logger.warning(f"⚠️ IMC extremadamente alto detectado: {bmi_value:.2f}. Verificar si los datos son correctos.")
+    if rel_cintura_altura is not None and not np.isnan(rel_cintura_altura) and rel_cintura_altura > 1.0:
+        logger.warning(f"⚠️ Relación cintura-altura extremadamente alta: {rel_cintura_altura:.2f}. Verificar si los datos son correctos.")
 
     features_df = pd.DataFrame([cardio_values])
 

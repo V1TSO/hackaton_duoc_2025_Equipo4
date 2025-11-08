@@ -6,7 +6,8 @@ from app.core.database import (
     save_chat_message,
     save_assessment,
     link_assessment_to_session,
-    get_supabase
+    get_supabase,
+    delete_chat_session
 )
 from app.schemas.chat_schema import ChatMessageInput, ChatMessageOutput, ChatMessage
 from app.agents.conversational_agent import process_chat_message
@@ -70,7 +71,13 @@ async def handle_chat_message(
         
         # Log assessment data before saving
         assessment_data_dict = assessment_result.get("assessment_data", {})
-        logger.info(f"Guardando assessment con plan_text: {('plan_text' in assessment_data_dict)}, citations: {('citations' in assessment_data_dict)}")
+        plan_text_exists = 'plan_text' in assessment_data_dict
+        citations_exists = 'citations' in assessment_data_dict
+        plan_text_length = len(assessment_data_dict.get('plan_text', '')) if plan_text_exists else 0
+        
+        logger.info(f"📝 Guardando assessment - plan_text existe: {plan_text_exists}, longitud: {plan_text_length}, citations existe: {citations_exists}")
+        logger.info(f"📝 Estructura assessment_result: {list(assessment_result.keys())}")
+        logger.info(f"📝 Estructura assessment_data: {list(assessment_data_dict.keys())[:10]}...")  # Primeros 10 keys
         
         saved_assessment = save_assessment(user_id, assessment_result, access_token)
         
@@ -179,3 +186,29 @@ async def handle_coach_message(
         model_used=None,
         assessment_id=assessment_id
     )
+
+@router.delete(
+    "/session/{session_id}",
+    summary="Eliminar sesión de chat",
+    tags=["Chat Agent"]
+)
+async def delete_session(
+    session_id: str,
+    usuario = Depends(verify_supabase_token)
+):
+    """
+    Elimina una sesión de chat y todos sus mensajes.
+    Solo puede eliminar sesiones del usuario autenticado.
+    """
+    user_id = usuario["id"]
+    access_token = usuario.get("_access_token")
+    
+    result = delete_chat_session(session_id, user_id, access_token)
+    
+    if "error" in result:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=result["error"]
+        )
+    
+    return {"success": True, "message": "Sesión eliminada correctamente"}

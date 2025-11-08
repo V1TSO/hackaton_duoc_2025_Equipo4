@@ -19,8 +19,8 @@ export default function HomePage() {
             </div>
             
             <p className="text-xl md:text-2xl text-gray-600 mb-8 max-w-4xl mx-auto">
-              Tu <strong className="text-red-600">Coach Personal de Salud Cardiovascular</strong> 
-              powered by AI. Evalúa tu riesgo y recibe recomendaciones personalizadas.
+              Tu <strong className="text-red-600">Coach Personal de Salud Cardiovascular </strong> 
+              con el poder de la IA. Evalúa tu riesgo y recibe recomendaciones personalizadas.
             </p>
 
             {/* CTA Buttons */}

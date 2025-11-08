@@ -2,7 +2,7 @@
 import logging
 from openai import OpenAI
 from pydantic import BaseModel, Field
-from typing import List, Literal
+from typing import List, Literal, Optional
 import json # Importa json
 
 from app.core.config import settings
@@ -20,21 +20,34 @@ class PredictionData(BaseModel):
     Datos requeridos para ejecutar una predicción de salud.
     El agente DEBE recolectar esta información ANTES de llamar a la herramienta.
     """
+    # Campos comunes a ambos modelos (siempre requeridos)
     edad: int = Field(..., description="Edad del usuario en años.")
     genero: Literal['M', 'F'] = Field(..., description="Sexo biológico del usuario (M o F).")
-    imc: float = Field(..., description="Índice de Masa Corporal (ej: 25.4).")
+    altura_cm: float = Field(..., description="Altura del usuario en centímetros (ej: 170).")
+    peso_kg: float = Field(..., description="Peso del usuario en kilogramos (ej: 75).")
     circunferencia_cintura: float = Field(..., description="Circunferencia de cintura en centímetros (ej: 92.5).")
-    presion_sistolica: float = Field(..., description="Presión arterial sistólica (el número más alto, ej: 120).")
-    colesterol_total: float = Field(..., description="Nivel de colesterol total (ej: 200).")
-    tabaquismo: bool = Field(..., description="¿El usuario fuma? (true/false).")
-    actividad_fisica: str = Field(..., description="Nivel de actividad física (ej: 'sedentario', 'moderado', 'activo').")
-    horas_sueno: float = Field(..., description="Horas de sueño promedio por noche (ej: 7.5).")
+    imc: Optional[float] = Field(None, description="Índice de Masa Corporal (calculado automáticamente).")
+    
+    # Campos SOLO para modelo diabetes
+    presion_sistolica: Optional[float] = Field(None, description="Presión arterial sistólica (ej: 120). REQUERIDO SOLO para modelo diabetes.")
+    colesterol_total: Optional[float] = Field(None, description="Colesterol total (ej: 200). REQUERIDO SOLO para modelo diabetes.")
+    horas_sueno: Optional[float] = Field(None, description="Horas de sueño por noche (ej: 7.5). REQUERIDO SOLO para modelo diabetes.")
+    tabaquismo: Optional[bool] = Field(None, description="¿Fuma? REQUERIDO SOLO para modelo diabetes.")
+    actividad_fisica: Optional[str] = Field(None, description="Nivel de actividad ('sedentario','moderado','activo'). REQUERIDO SOLO para modelo diabetes.")
+    
+    # Campos SOLO para modelo cardiovascular
+    glucosa_mgdl: Optional[float] = Field(None, description="Glucosa en ayunas mg/dL (ej: 95). REQUERIDO SOLO para modelo cardiovascular.")
+    hdl_mgdl: Optional[float] = Field(None, description="HDL colesterol bueno mg/dL (ej: 50). REQUERIDO SOLO para modelo cardiovascular.")
+    ldl_mgdl: Optional[float] = Field(None, description="LDL colesterol malo mg/dL (ej: 130). REQUERIDO SOLO para modelo cardiovascular.")
+    trigliceridos_mgdl: Optional[float] = Field(None, description="Triglicéridos mg/dL (ej: 150). REQUERIDO SOLO para modelo cardiovascular.")
     
     modelo_a_usar: Literal['diabetes', 'cardiovascular'] = Field(
         ..., 
-        description="Basado en la conversación, decide qué modelo es más relevante. "
-                    "Usa 'diabetes' si la preocupación principal es el azúcar en sangre. "
-                    "Usa 'cardiovascular' si es presión arterial, colesterol o tabaquismo."
+        description="Basado en la conversación y los datos disponibles, decide qué modelo es más relevante. "
+                    "IMPORTANTE: Usa 'cardiovascular' SOLO si tienes valores de HDL, LDL y triglicéridos. "
+                    "Si solo tienes colesterol total y presión sistólica, usa 'diabetes'. "
+                    "El modelo 'diabetes' usa presión sistólica y colesterol total directamente. "
+                    "El modelo 'cardiovascular' requiere HDL, LDL, triglicéridos y glucosa."
     )
 
 # 2. El Prompt del Sistema (¡MODIFICADO CON GUARDRAILS!)
@@ -45,16 +58,39 @@ Tus objetivos principales son dos:
 1. **Dar Recomendaciones:** Responder preguntas generales sobre salud cardiovascular, bienestar, dieta y ejercicio, utilizando la base de conocimiento (RAG).
 2. **Recolectar Datos:** Guiar al usuario para recolectar la información necesaria para una evaluación de riesgo (definida en la herramienta submit_for_prediction).
 
-DATOS REQUERIDOS PARA EVALUACIÓN: Para poder llamar a la herramienta submit_for_prediction, DEBES recolectar los siguientes datos, que son los únicos que utilizan nuestros modelos:
-- Edad (en años)
-- Sexo (biológico: 'M' para masculino o 'F' para femenino)
-- IMC (Índice de Masa Corporal) o altura y peso para calcularlo
-- Circunferencia de Cintura (en centímetros, medida a la altura del ombligo)
+DATOS REQUERIDOS PARA EVALUACIÓN: Tenemos DOS modelos de predicción disponibles. Identifica cuál usar según lo que el usuario mencione:
+
+**OPCIÓN 1 - MODELO DIABETES (más accesible, usa datos clínicos básicos):**
+Datos comunes:
+- Edad, Sexo, Altura, Peso, Circunferencia de Cintura
+Datos específicos del modelo diabetes:
 - Horas de Sueño (promedio por noche)
-- Tabaquismo (si fuma o no)
-- Actividad Física (nivel de actividad: sedentario, moderado, activo)
-- Presión Sistólica (el número más alto de la presión arterial)
-- Colesterol Total (nivel de colesterol)
+- Tabaquismo (sí/no)
+- Actividad Física (sedentario, ligero, moderado, activo, muy_activo)
+- Presión Sistólica (el número más alto de la presión arterial, ej: 120)
+- Colesterol Total (nivel general de colesterol, ej: 200)
+
+**OPCIÓN 2 - MODELO CARDIOVASCULAR (requiere análisis de laboratorio detallado):**
+Datos comunes:
+- Edad, Sexo, Altura, Peso, Circunferencia de Cintura
+Datos específicos del modelo cardiovascular:
+- Glucosa en ayunas (mg/dL, ej: 95)
+- HDL - Colesterol "bueno" (mg/dL, ej: 50)
+- LDL - Colesterol "malo" (mg/dL, ej: 130)
+- Triglicéridos (mg/dL, ej: 150)
+
+IMPORTANTE - CUÁNDO USAR CADA MODELO:
+- Usa CARDIOVASCULAR solo si el usuario menciona explícitamente "análisis de sangre", "panel lipídico", "examen de lípidos", "HDL", "LDL", "triglicéridos", o si dice que tiene resultados de laboratorio detallados
+- Usa DIABETES como predeterminado si el usuario solo pide una "evaluación de riesgo" general o no menciona análisis de laboratorio
+- El modelo CARDIOVASCULAR NO usa: horas de sueño, tabaquismo, actividad física, presión sistólica, ni colesterol total
+- El modelo DIABETES NO usa: glucosa, HDL, LDL, ni triglicéridos
+
+FLUJO DE RECOLECCIÓN:
+1. Siempre recopila primero los datos comunes (edad, sexo, altura, peso, cintura)
+2. Pregunta al usuario si tiene análisis de sangre recientes con valores de HDL/LDL/triglicéridos
+3. Si SÍ tiene análisis → usa modelo cardiovascular y pide glucosa, HDL, LDL, triglicéridos
+4. Si NO tiene análisis → usa modelo diabetes y pide sueño, tabaquismo, actividad física, presión, colesterol total
+5. NO pidas el IMC directamente, se calcula automáticamente
 
 REGLAS ESTRICTAS DE IDENTIDAD Y GUARDRAILS:
 1. **Identidad:** NUNCA digas que eres un "modelo de IA", "ChatGPT", "un bot" o "un programa". Eres un "agente de salud de CardioSense" o "tu asistente de CardioSense".
@@ -131,13 +167,39 @@ def process_chat_message(history: List[dict]) -> tuple[str, dict | None, bool]:
             # Añadimos 'fecha' si no está, aunque el modelo ML no la use
             ml_input_data.setdefault('fecha', '2025-01-01') 
             
+            # Calcular IMC si no se proporcionó pero tenemos altura y peso
+            if ml_input_data.get('imc') is None:
+                altura = ml_input_data.get('altura_cm')
+                peso = ml_input_data.get('peso_kg')
+                if altura and peso and altura > 0:
+                    ml_input_data['imc'] = peso / ((altura / 100) ** 2)
+                    logger.info(f"IMC calculado automáticamente: {ml_input_data['imc']:.2f} (peso: {peso}kg, altura: {altura}cm)")
+            
+            # Validar que el modelo seleccionado sea apropiado para los datos disponibles
+            # El modelo cardiovascular requiere HDL, LDL, triglicéridos (TODOS)
+            # El modelo diabetes usa presión sistólica y colesterol total
+            tiene_hdl_ldl_trig = (ml_input_data.get('hdl_mgdl') is not None and 
+                                  ml_input_data.get('ldl_mgdl') is not None and 
+                                  ml_input_data.get('trigliceridos_mgdl') is not None)
+            tiene_presion_colesterol = (ml_input_data.get('presion_sistolica') is not None and 
+                                       ml_input_data.get('colesterol_total') is not None)
+            
+            # Si el agente eligió cardiovascular pero no tenemos HDL/LDL/trig completos, usar diabetes
+            if modelo_elegido == "cardiovascular" and not tiene_hdl_ldl_trig:
+                if tiene_presion_colesterol:
+                    logger.warning(f"⚠️ El agente eligió 'cardiovascular' pero faltan datos completos de lípidos (HDL/LDL/triglicéridos). "
+                                 f"Cambiando a 'diabetes' que usa presión y colesterol total.")
+                    modelo_elegido = "diabetes"
+                    ml_input_data['modelo'] = "diabetes"
+                else:
+                    logger.error(f"❌ Modelo cardiovascular requiere HDL, LDL y triglicéridos, pero no están disponibles.")
+                    return "Lo siento, para usar el modelo cardiovascular necesito los valores de HDL, LDL y triglicéridos. ¿Podrías proporcionarlos?", None, False
+            
             ml_input = AnalisisEntrada(**ml_input_data) 
             
-            # Llamamos al servicio de ML
-            # NOTA: Aquí deberías tener lógica para elegir el endpoint
-            # correcto basado en 'modelo_elegido'.
-            # Por ahora, usamos el 'obtener_prediccion' genérico.
-            pred_result = obtener_prediccion(ml_input)
+            # Llamamos al servicio de ML con el modelo seleccionado (posiblemente corregido)
+            pred_result = obtener_prediccion(ml_input, model_type=modelo_elegido)
+            logger.info(f"Predicción obtenida con modelo '{modelo_elegido}': score={pred_result.get('score')}, risk_level={pred_result.get('categoria_riesgo')}")
             
             if "error" in pred_result:
                 return f"Tuve problemas al calcular tu predicción: {pred_result['error']}", None, False
@@ -153,11 +215,30 @@ def process_chat_message(history: List[dict]) -> tuple[str, dict | None, bool]:
             )
             logger.info(f"Plan generado exitosamente. Longitud: {len(plan_ia)} caracteres, Citas: {len(citas_kb)}")
 
+            # Preparar el resultado final con guardrails
+            REFERRAL_THRESHOLD = 0.70
+            derivation_message = ""
+            if prediccion_obj.score >= REFERRAL_THRESHOLD:
+                derivation_message = (
+                    f"\n\n⚠️ **IMPORTANTE - Derivación Recomendada:**\n"
+                    f"Tu puntaje de riesgo ({prediccion_obj.score:.1%}) es elevado. "
+                    f"Te recomendamos encarecidamente consultar con un profesional de la salud "
+                    f"para una evaluación médica completa. Este sistema no reemplaza el diagnóstico médico profesional.\n"
+                )
+            elif prediccion_obj.categoria_riesgo.lower() == "alto":
+                derivation_message = (
+                    f"\n\n⚠️ **Recomendación:**\n"
+                    f"Considera consultar con un profesional de la salud para una evaluación personalizada. "
+                    f"Este sistema es una herramienta educativa y no reemplaza el consejo médico profesional.\n"
+                )
+            
             # Preparar el resultado final
             final_response_text = (
                 f"¡Gracias! He completado tu evaluación (usando el modelo de {modelo_elegido}).\n\n"
-                f"**Resultado:** Tu riesgo es **{prediccion_obj.categoria_riesgo}**.\n\n"
+                f"**Resultado:** Tu riesgo es **{prediccion_obj.categoria_riesgo}** "
+                f"(puntaje: {prediccion_obj.score:.1%}).\n\n"
                 f"**Plan de Acción:**\n{plan_ia}"
+                f"{derivation_message}"
             )
             
             # Preparamos los datos completos para el frontend
