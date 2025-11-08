@@ -191,11 +191,23 @@ DESPLIEGUE
 ------------------------------------------------------------
 CONTRIBUCIONES
 ------------------------------------------------------------
-Flujo recomendado:
-1. Abrir un issue describiendo la mejora o bug.
-2. Crear rama: feature/descripcion o fix/descripcion
-3. Hacer commits claros y probar localmente.
-4. Abrir pull request con descripción y pasos para reproducir.
+¿Quieres contribuir al proyecto? ¡Excelente! 
+
+**📖 Lee nuestra [Guía de Contribución](CONTRIBUTING.md)** para aprender cómo:
+- Hacer un fork del repositorio
+- Configurar tu entorno de desarrollo
+- Crear ramas de trabajo
+- Mantener tu fork actualizado
+- Enviar pull requests
+
+**Flujo resumido:**
+1. Haz un fork del repositorio en GitHub
+2. Clona tu fork localmente
+3. Crea una rama: `feature/descripcion` o `fix/descripcion`
+4. Haz commits claros y prueba localmente
+5. Abre un pull request con descripción detallada
+
+Para instrucciones completas paso a paso en español e inglés, consulta [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ------------------------------------------------------------
 AUTORES / LICENCIA
