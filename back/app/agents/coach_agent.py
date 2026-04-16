@@ -8,7 +8,21 @@ from app.core.config import settings
 from app.agents.openai_agent import retrieve_context_from_kb
 
 logger = logging.getLogger(__name__)
-client = OpenAI(api_key=settings.OPENAI_API_KEY)
+
+# Use Groq client if available, otherwise try OpenAI
+if settings.GROQ_API_KEY:
+    client = OpenAI(
+        api_key=settings.GROQ_API_KEY,
+        base_url="https://api.groq.com/openai/v1"
+    )
+    DEFAULT_MODEL = "llama-3.1-8b-instant"
+elif settings.OPENAI_API_KEY:
+    client = OpenAI(api_key=settings.OPENAI_API_KEY)
+    DEFAULT_MODEL = "gpt-4o-mini"
+else:
+    client = None
+    DEFAULT_MODEL = None
+    logger.warning("No LLM API key configured. Chat features will be disabled.")
 
 def create_coach_system_prompt(assessment_data: Dict, plan_text: str) -> str:
     """
@@ -100,7 +114,7 @@ def process_coach_message(assessment_data: Dict, plan_text: str, history: List[d
         messages = [{"role": "system", "content": system_prompt}] + history
         
         completion = client.chat.completions.create(
-            model="gpt-4o-mini",
+            model=DEFAULT_MODEL,
             messages=messages,
             temperature=0.7,
             max_tokens=500

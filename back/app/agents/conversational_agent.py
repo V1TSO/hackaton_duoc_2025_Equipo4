@@ -12,7 +12,21 @@ from app.services.ml_service import obtener_prediccion
 from app.agents.openai_agent import generar_plan_con_rag
 
 logger = logging.getLogger(__name__)
-client = OpenAI(api_key=settings.OPENAI_API_KEY)
+
+# Use Groq client if available, otherwise try OpenAI
+if settings.GROQ_API_KEY:
+    client = OpenAI(
+        api_key=settings.GROQ_API_KEY,
+        base_url="https://api.groq.com/openai/v1"
+    )
+    DEFAULT_MODEL = "llama-3.1-8b-instant"
+elif settings.OPENAI_API_KEY:
+    client = OpenAI(api_key=settings.OPENAI_API_KEY)
+    DEFAULT_MODEL = "gpt-4o-mini"
+else:
+    client = None
+    DEFAULT_MODEL = None
+    logger.warning("No LLM API key configured. Chat features will be disabled.")
 
 # 1. Definición de la "Herramienta" (Tool Calling)
 class PredictionData(BaseModel):
@@ -137,7 +151,7 @@ def process_chat_message(history: List[dict]) -> tuple[str, dict | None, bool]:
     # 1. Llamar a OpenAI con el historial y las herramientas
     try:
         completion = client.chat.completions.create(
-            model="gpt-4o-mini", 
+            model=DEFAULT_MODEL, 
             messages=[{"role": "system", "content": SYSTEM_PROMPT}] + history,
             tools=TOOLS,
             tool_choice="auto"

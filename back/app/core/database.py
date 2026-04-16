@@ -172,12 +172,13 @@ def get_or_create_session(user_id: str, session_id: str | None = None, access_to
 def get_messages_by_session(session_id: str, access_token: Optional[str] = None) -> List[dict]:
     """
     Obtiene todo el historial de mensajes de una sesión, ordenado.
+    Solo devuelve los campos necesarios para el LLM (role, content).
     """
     supabase = get_supabase(access_token)
     try:
         res = (
             supabase.table("chat_messages")
-            .select("*") # Seleccionar todos los campos para el schema ChatMessage
+            .select("role,content") # Solo campos necesarios para el LLM
             .eq("session_id", session_id)
             .order("created_at", desc=False) # El más antiguo primero
             .execute()

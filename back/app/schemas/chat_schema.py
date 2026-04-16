@@ -12,8 +12,8 @@ class ChatSession(BaseModel):
         from_attributes = True
 
 class ChatMessage(BaseModel):
-    id: uuid.UUID = Field(default_factory=uuid.uuid4)
-    session_id: uuid.UUID
+    id: Optional[uuid.UUID] = Field(default_factory=uuid.uuid4, exclude=True)
+    session_id: Optional[uuid.UUID] = Field(default=None, exclude=True)
     role: str # "user" o "assistant"
     content: str
     
