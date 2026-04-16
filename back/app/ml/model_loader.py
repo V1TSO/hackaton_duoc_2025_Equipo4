@@ -47,21 +47,30 @@ def load_model_bundle(model_type: str = "diabetes") -> Tuple[Any, Optional[Any],
 
             loaded_model = joblib.load(model_path)
 
-            if isinstance(loaded_model, dict):
-                model = loaded_model["model"]
-                if "imputer" in loaded_model and "feature_names" in loaded_model:
-                    imputer = loaded_model["imputer"]
-                    feature_names = loaded_model["feature_names"]
-                    logger.info("Loaded diabetes bundle with %s features", len(feature_names))
-                else:
-                    imputer = joblib.load(imputer_path)
-                    feature_names = joblib.load(feature_names_path)
-                    logger.info("Loaded diabetes model + separate imputer/feature names")
-            else:
-                model = loaded_model
+            # Cargar modelo
+            model = loaded_model
+            
+            # Cargar imputer con manejo de compatibilidad
+            try:
                 imputer = joblib.load(imputer_path)
+                # Verificar si el imputer es válido
+                if hasattr(imputer, 'transform'):
+                    logger.info("Imputer loaded successfully")
+                else:
+                    logger.warning("Imputer no tiene método transform, creando uno nuevo")
+                    imputer = None
+            except Exception as e:
+                logger.warning(f"Error cargando imputer: {e}, creando nuevo")
+                from sklearn.impute import SimpleImputer
+                imputer = SimpleImputer(strategy='median')
+            
+            # Cargar feature names
+            try:
                 feature_names = joblib.load(feature_names_path)
                 logger.info("Diabetes model loaded successfully with %s features", len(feature_names))
+            except Exception as e:
+                logger.warning(f"Error cargando feature_names: {e}")
+                feature_names = []
 
             return model, imputer, feature_names
 

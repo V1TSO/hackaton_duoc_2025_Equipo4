@@ -40,7 +40,7 @@ export default async function HistoryPage() {
 
   const scores = assessments.map((a) => ({
     date: new Date(a.created_at),
-    score: a.risk_score,
+    score: a.score,
   }));
 
   const avgScore =
@@ -166,7 +166,7 @@ export default async function HistoryPage() {
                 <div className="flex-1">
                   <div className="flex items-center gap-3 mb-2">
                     <span className={`text-2xl font-bold ${riskColor}`}>
-                      {Math.round(assessment.risk_score * 100)}
+                      {Math.round(assessment.score * 100)}
                     </span>
                     <span className={`font-semibold ${riskColor}`}>
                       {riskLabel}

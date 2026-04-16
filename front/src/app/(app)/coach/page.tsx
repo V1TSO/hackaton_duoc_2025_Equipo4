@@ -32,7 +32,7 @@ export default async function CoachPage({ searchParams }: CoachPageProps) {
   let query = supabase
     .from("assessments")
     .select(
-      "id, created_at, risk_score, risk_level, drivers, assessment_data"
+      "id, created_at, score, risk_level, drivers, assessment_data"
     )
     .eq("user_id", session.user.id)
     .order("created_at", { ascending: false });

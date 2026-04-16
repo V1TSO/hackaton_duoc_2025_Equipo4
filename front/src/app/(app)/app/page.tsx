@@ -76,7 +76,7 @@ export default async function AppDashboardPage() {
           </h3>
           <p className="text-3xl font-bold text-gray-900">
             {latestAssessment
-              ? `${Math.round(latestAssessment.risk_score * 100)}`
+              ? `${Math.round(latestAssessment.score * 100)}`
               : "no disponible"}
           </p>
         </div>

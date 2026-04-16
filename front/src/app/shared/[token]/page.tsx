@@ -36,7 +36,7 @@ export default async function SharedResultsPage({
   }
 
   const riskDescription = getRiskDescription(assessment.risk_level);
-  const needsDoctor = shouldRecommendDoctor(assessment.risk_score ?? 0);
+  const needsDoctor = shouldRecommendDoctor(assessment.score ?? 0);
   const assessmentData = (assessment.assessment_data ?? {}) as {
     age?: number;
     sex?: string;
@@ -90,7 +90,7 @@ export default async function SharedResultsPage({
 
           <div className="flex flex-col lg:flex-row gap-8 mb-8">
             <div className="flex-1 flex justify-center">
-              <RiskGauge score={assessment.risk_score} size="lg" />
+              <RiskGauge score={assessment.score} size="lg" />
             </div>
 
             <div className="flex-1 space-y-6">
